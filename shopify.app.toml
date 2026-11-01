@@ -1,0 +1,21 @@
+# SEO Score app config. Deploy with: shopify app deploy
+client_id = "9c714332236394a210015a21472420ba"
+name = "SEO Score"
+application_url = "https://ronrdt.github.io/seo-score/"
+embedded = true
+
+[access_scopes]
+# Needed by the Rescan products button (reads products and their FAQ metafields)
+scopes = "read_products"
+use_legacy_install_flow = false
+
+[access.admin]
+# Lets the embedded page call the Admin API directly from the browser
+direct_api_mode = "online"
+embedded_app_direct_api_access = true
+
+[auth]
+redirect_urls = ["https://ronrdt.github.io/seo-score/auth/callback"]
+
+[webhooks]
+api_version = "2026-10"
