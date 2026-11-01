@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><link rel="icon" type="image/svg+xml" href="icon.svg"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="shopify-api-key" content="9c714332236394a210015a21472420ba">
 <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
 <title>SEO Score</title>
@@ -27,7 +27,7 @@ td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}td.sc
 .tabs{display:flex;gap:8px;margin:12px 0}.tabs button,.fb{font:inherit;padding:6px 14px;border:1px solid var(--grid,#ccc);border-radius:999px;background:transparent;color:inherit;cursor:pointer}.tabs button.on,.fb.on{background:#1a1a1a;color:#fff}.fb{margin-left:6px;padding:4px 10px;font-size:13px}@media(prefers-color-scheme:dark){.tabs button.on,.fb.on{background:#e8e8e8;color:#111}}
 </style></head><body>
 <div class="sc">
-<header><h1>SEO Score</h1><p class="lede" id="take"></p>
+<header><h1><img src="icon.svg" alt="" width="28" height="28" style="vertical-align:-5px;margin-right:8px">SEO Score</h1><p class="lede" id="take"></p>
 <p class="note">Our own checklist for wedoart-il.com (critical x3, major x2, minor x1), replacing the Avada audit. Scored Oct 24, 2026. Each page's main keyword is guessed from its handle, so keyword checks are a first pass.</p></header>
 <div class="tabs"><button id="tabc" class="on">Collections</button><button id="tabp">Products</button></div>
 <section id="secp" style="display:none"><h2>Products</h2><p class="note">2,700 active products.</p>
@@ -156,7 +156,7 @@ const note=document.querySelector('header .note');const bar=document.createEleme
 bar.innerHTML='<button class="fb on" id="rescan" style="margin:8px 0 0">Rescan products</button> <span id="scanst"></span><br><span id="scanned"></span>';note.after(bar);
 const btn=document.getElementById('rescan'),st=document.getElementById('scanst');
 try{const s=JSON.parse(localStorage.getItem('seoscan')||'null');if(s){Object.assign(D,s.D);for(const k in sm)delete sm[k];D.summary.forEach(r=>sm[r.metric]=r.value);apply(s.stamp)}}catch(e){}
-btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(btn,st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent=/fetch/i.test(e.message)?'Rescan needs Direct API access turned on for this app (app settings in the Dev Dashboard).':'Rescan failed: '+e.message}btn.disabled=false};
+btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(btn,st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent='Rescan failed: '+(e&&e.message?e.message:String(e))+' (details in the browser console)';console.error('SEO Score rescan',e)}btn.disabled=false};
 })();
 </script>
 <script>
@@ -205,7 +205,7 @@ const host=document.getElementById('scanned');const bar=document.createElement('
 bar.innerHTML='<button class="fb on" id="rescanc" style="margin:0">Rescan collections</button> <span id="scanstc"></span><br><span id="scannedc"></span>';host.after(bar);
 const btn=document.getElementById('rescanc'),st=document.getElementById('scanstc');
 try{const s=JSON.parse(localStorage.getItem('seoscanc')||'null');if(s){D.collections=s.rows;cs.length=0;s.rows.forEach(r=>cs.push(Number(r.score)));apply(s.stamp)}}catch(e){}
-btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent=/fetch/i.test(e.message)?'Rescan needs Direct API access turned on for this app.':'Rescan failed: '+e.message}btn.disabled=false};
+btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent='Rescan failed: '+(e&&e.message?e.message:String(e))+' (details in the browser console)';console.error('SEO Score rescan',e)}btn.disabled=false};
 })();
 </script>
 </body></html>
