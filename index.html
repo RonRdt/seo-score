@@ -150,7 +150,7 @@ const note=document.querySelector('header .note');const bar=document.createEleme
 bar.innerHTML='<button class="fb on" id="rescan" style="margin:8px 0 0">Rescan products</button> <span id="scanst"></span><br><span id="scanned"></span>';note.after(bar);
 const btn=document.getElementById('rescan'),st=document.getElementById('scanst');
 try{const s=JSON.parse(localStorage.getItem('seoscan')||'null');if(s){Object.assign(D,s.D);for(const k in sm)delete sm[k];D.summary.forEach(r=>sm[r.metric]=r.value);apply(s.stamp)}}catch(e){}
-btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(btn,st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent='Rescan failed: '+e.message}btn.disabled=false};
+btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(btn,st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent=/fetch/i.test(e.message)?'Rescan needs Direct API access turned on for this app (app settings in the Dev Dashboard).':'Rescan failed: '+e.message}btn.disabled=false};
 })();
 </script>
 </body></html>
