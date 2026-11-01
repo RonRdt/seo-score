@@ -93,11 +93,12 @@ const Q=`query($c:String){products(first:40,after:$c,query:"status:active"){page
  media(first:20){nodes{alt ... on MediaImage{image{url}}}} f1:metafield(namespace:"faqs",key:"settings"){value} f2:metafield(namespace:"faqs",key:"settings_en"){value}}}}`;
 const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
 const strip=h=>h.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+const sentsOf=h=>strip(h.replace(/\b(Dr|Mr|Mrs|Ms|St|vs)\./g,'$1').replace(/<\/(li|p|h[1-6]|div|tr)>/gi,'. ')).split(/(?<=[.!?])\s+/).map(x=>x.replace(/^[.\s]+/,'')).filter(x=>x&&!/^[.!?:;\s]+$/.test(x));
 function kwOf(p){const w=p.handle.split('-').filter(x=>x&&!STOP.has(x)&&!/^\d+$/.test(x));return w.slice(0,3).join(' ')||p.handle.replace(/-/g,' ')}
 function score(p,live){
  const kw=kwOf(p).toLowerCase(),kwn=kw.split(' ').length;const html=p.descriptionHtml||'',txt=strip(html),low=txt.toLowerCase();
  const wc=words(txt).length,occ=kw?low.split(kw).length-1:0,dens=wc?occ*kwn/wc*100:0;
- const sents=txt.split(/(?<=[.!?])\s+/).filter(Boolean),firstP=strip((html.match(/<p[^>]*>([\s\S]*?)<\/p>/i)||[,''])[1]).toLowerCase();
+ const sents=sentsOf(html),firstP=strip((html.match(/<p[^>]*>([\s\S]*?)<\/p>/i)||[,''])[1]).toLowerCase();
  const first=firstP.split(/(?<=[.!?])\s+/)[0]||'';
  const heads=[...html.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)].map(m=>strip(m[1]).toLowerCase());
  const links=[...html.matchAll(/href="([^"]+)"/gi)].map(m=>m[1]);
@@ -116,7 +117,7 @@ function score(p,live){
  ['Exactly 5 FAQs',3,qs.length===5],['Ingredients (INCI) heading + bullet list',3,!needsInci||hasInci],['No medical-sounding wording',3,!CLAIM.test(txt)],
  ['No negative or uncertain sentences',3,!NEG.test(txt)],['Internal links point to active products',3,internal.every(h=>live.has(h))],['Product has images',3,imgs.length>0],
  ['Sentences under 20 words',2,sents.every(s=>words(s).length<20)],['Real H2/H3 headings',2,heads.length>0],['2+ internal product links',2,internal.length>=2],
- ['A neutral external link',2,external.length>=1],['Meta title 60 chars max, keyword early',2,mt.length<=60&&mt.toLowerCase().indexOf(kw.split(' ')[0])>=0&&mt.toLowerCase().indexOf(kw.split(' ')[0])<=30],
+ ['A neutral external link',2,external.length>=1],['Meta title 60 chars max, keyword early',2,mt.length<=60&&kw.split(' ').some(k=>{const i=mt.toLowerCase().indexOf(k);return i>=0&&i<=30})],
  ['Keyword in meta description',2,md.toLowerCase().includes(kw)],['No stop words in handle',2,!hw.some(w=>STOP.has(w))],['Keyword in an FAQ answer',2,qs.some(q=>(q.answer||'').toLowerCase().includes(kw))],
  ['FAQ keys settings and settings_en match',2,!!faq1&&!!faq2&&JSON.stringify(faq1.questions)===JSON.stringify(faq2.questions)],['No empty FAQ text',2,qs.every(q=>q.question&&q.answer)],
  ['Every image has alt text',2,alts.every(a=>a)],['5-10 meaningful tags',2,p.tags.length>=5&&p.tags.length<=10],['No claim-word tags',2,!p.tags.some(t=>CLAIM.test(t))],
@@ -168,7 +169,7 @@ function score(c){
  const kw=kwOf(c).toLowerCase(),kwn=kw.split(' ').length;const ac=c.ac&&c.ac.value||'';const html=(c.descriptionHtml||'')+' '+ac;
  const txt=strip(html),low=txt.toLowerCase(),wc=words(txt).length,acw=words(strip(ac)).length;
  const occ=kw?low.split(kw).length-1:0,dens=wc?occ*kwn/wc*100:0;
- const sents=txt.split(/(?<=[.!?])\s+/).filter(Boolean);const first=(sents[0]||'').toLowerCase();
+ const sents=sentsOf(html);const first=(sents[0]||'').toLowerCase();
  const heads=[...html.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi)].map(m=>strip(m[1]).toLowerCase());
  let f1=null,f2=null;try{f1=JSON.parse(c.f1.value)}catch(e){}try{f2=JSON.parse(c.f2.value)}catch(e){}
  const qs=(f2&&f2.questions)||(f1&&f1.questions)||[];const md=(c.seo&&c.seo.description)||'',mt=(c.seo&&c.seo.title)||c.title;const hw=c.handle.split('-');
