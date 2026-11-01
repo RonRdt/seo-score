@@ -170,6 +170,7 @@ const Q=`query($c:String){collections(first:40,after:$c){pageInfo{hasNextPage en
 const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
 const strip=h=>(h||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const sentsOf=h=>strip(h.replace(/\b(Dr|Mr|Mrs|Ms|St|vs)\./g,'$1').replace(/<\/(li|p|h[1-6]|div|tr)>/gi,'. ')).split(/(?<=[.!?])\s+/).map(x=>x.replace(/^[.\s]+/,'')).filter(x=>x&&!/^[.!?:;\s]+$/.test(x));
+const HIDDEN=new Set(['recommended-products-seguno','medicines-hidden-not-for-sale']);
 const KWC={'doctor-or-skincare-collection':'doctor or skincare','best-selling-products-top-collection':'best selling products','baraka-baraka':'baraka','osem-osem':'osem','hlavin-hlavin':'hlavin','new-arrivals':'new arrivals','new-arrivals-1':'new arrivals','herbs-of-kedem-skincare':'kedem skincare','sea-life-shampoo':'life shampoo','stylish-kitchen-essentials':'pantry staples'};
 function kwOf(c){if(KWC[c.handle])return KWC[c.handle];const w=c.handle.split('-').filter(x=>x&&!STOP.has(x));return w.slice(0,3).join(' ')||c.handle.replace(/-/g,' ')}
 function score(c){
@@ -183,7 +184,7 @@ function score(c){
  const pos=mt.toLowerCase().indexOf(kw.split(' ')[0]);
  const C=[
  ['Page text 300+ words',3,wc>=300],['After-content 50+ words',3,acw>=50],['Keyword in first sentence',3,first.includes(kw)],['Keyword in a heading',3,heads.some(h=>h.includes(kw))],
- ['Keyword density 1-1.5%',3,dens>=1&&dens<=1.5],['Keyword in collection title',3,c.title.toLowerCase().replace(/[&\-–]+/g,' ').replace(/\s+/g,' ').includes(kw)],['Meta description 150-160 chars',3,md.length>=150&&md.length<=160],
+ ['Keyword density 1-1.5%',3,dens>=1&&dens<=1.5],['Keyword in collection title',3,(()=>{const tw=c.title.toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu,' ').split(/\s+/);return kw.split(' ').every(k=>tw.includes(k))})()],['Meta description 150-160 chars',3,md.length>=150&&md.length<=160],
  ['Handle 43 chars max, has keyword',3,c.handle.length<=43&&kw.split(' ').some(k=>hw.includes(k))],['Exactly 5 FAQs',3,qs.length===5],['No medical-sounding wording',3,!CLAIM.test(txt)],['No negative or uncertain sentences',3,!NEG.test(txt)],
  ['Sentences under 20 words',2,sents.every(s=>words(s).length<20)],['Real headings',2,heads.length>0],['Meta title 60 chars max, keyword early',2,mt.length<=60&&pos>=0&&pos<=30],
  ['Keyword in meta description',2,md.toLowerCase().includes(kw)],['No stop words in handle',2,!hw.some(w=>STOP.has(w))],['Keyword in an FAQ answer',2,qs.some(q=>(q.answer||'').toLowerCase().includes(kw))],
@@ -196,7 +197,7 @@ async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-
  if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
 async function scan(st){const all=[];let c=null,more=true;
  while(more){let d,t=0;for(;;){try{d=await gql(Q,{c});break}catch(e){if(++t>3)throw e;await new Promise(r=>setTimeout(r,1500*t))}}
-  all.push(...d.collections.nodes);more=d.collections.pageInfo.hasNextPage;c=d.collections.pageInfo.endCursor;st.textContent='Scanning… '+all.length+' collections'}
+  all.push(...d.collections.nodes.filter(n=>!HIDDEN.has(n.handle)));more=d.collections.pageInfo.hasNextPage;c=d.collections.pageInfo.endCursor;st.textContent='Scanning… '+all.length+' collections'}
  const rows=all.map(score);D.collections=rows;cs.length=0;rows.forEach(r=>cs.push(Number(r.score)));
  const stamp=new Date().toLocaleString('en',{dateStyle:'medium',timeStyle:'short'});
  try{localStorage.setItem('seoscanc',JSON.stringify({rows,stamp}))}catch(e){}return stamp}
