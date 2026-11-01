@@ -82,4 +82,75 @@ function draw(){
  table('tc',D.collections,['handle','score','critical fails'],S.c,['score']);
 }
 draw();
-</script></body></html>
+</script>
+<script>
+/* Rescan: scores every active product in the browser through App Bridge direct API access. */
+(function(){
+const STOP=new Set('a an and the of for to in on with by from at or is are your our you best new pack ml g gr mg kg oz'.split(' '));
+const CLAIM=/\b(treat|treats|treatment|cure|cures|heal|heals|healing|prevent|prevents|detox|clinical|clinically|anti-inflammatory|hypoallergenic|repair|repairs|disease|infection|eczema|psoriasis|acne|cancer|diabetes)\b/i;
+const NEG=/\b(we don't know|we do not know|cannot find|can't find|not available|unknown|no information)\b/i;
+const Q=`query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{handle title vendor tags descriptionHtml seo{title description}
+ media(first:20){nodes{alt ... on MediaImage{image{url}}}} f1:metafield(namespace:"faqs",key:"settings"){value} f2:metafield(namespace:"faqs",key:"settings_en"){value}}}}`;
+const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
+const strip=h=>h.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+function kwOf(p){const w=p.handle.split('-').filter(x=>x&&!STOP.has(x)&&!/^\d+$/.test(x));return w.slice(0,3).join(' ')||p.handle.replace(/-/g,' ')}
+function score(p,live){
+ const kw=kwOf(p).toLowerCase(),kwn=kw.split(' ').length;const html=p.descriptionHtml||'',txt=strip(html),low=txt.toLowerCase();
+ const wc=words(txt).length,occ=kw?low.split(kw).length-1:0,dens=wc?occ*kwn/wc*100:0;
+ const sents=txt.split(/(?<=[.!?])\s+/).filter(Boolean),firstP=strip((html.match(/<p[^>]*>([\s\S]*?)<\/p>/i)||[,''])[1]).toLowerCase();
+ const first=firstP.split(/(?<=[.!?])\s+/)[0]||'';
+ const heads=[...html.matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/gi)].map(m=>strip(m[1]).toLowerCase());
+ const links=[...html.matchAll(/href="([^"]+)"/gi)].map(m=>m[1]);
+ const internal=[...new Set(links.filter(l=>/^\/products\//.test(l)||/wedoart-il\.com\/products\//.test(l)).map(l=>l.split('/products/')[1].split(/[?#]/)[0]))];
+ const external=links.filter(l=>/^https?:\/\//.test(l)&&!/wedoart-il\.com/.test(l));
+ let faq1=null,faq2=null;try{faq1=JSON.parse(p.f1.value)}catch(e){}try{faq2=JSON.parse(p.f2.value)}catch(e){}
+ const qs=(faq2&&faq2.questions)||(faq1&&faq1.questions)||[];
+ const imgs=p.media.nodes.filter(m=>m.image),alts=imgs.map(m=>(m.alt||'').trim());
+ const md=(p.seo&&p.seo.description)||'',mt=(p.seo&&p.seo.title)||p.title;const hw=p.handle.split('-');
+ const needsInci=/ingredient/i.test(txt)||p.tags.some(t=>/^(type:(vitamins|supplements|cream|serum|shampoo|lotion))/.test(t));
+ const hasInci=heads.some(h=>/ingredient/.test(h))&&/<li/i.test(html);
+ const C=[ // [name, weight, pass]
+ ['Description 300-500 words',3,wc>=300&&wc<=500],['Keyword in first sentence',3,first.includes(kw)],['Keyword in a heading',3,heads.some(h=>h.includes(kw))],
+ ['Keyword density 1-1.5%',3,dens>=1&&dens<=1.5],['Keyword in product title',3,p.title.toLowerCase().includes(kw)],['Meta description 150-160 chars',3,md.length>=150&&md.length<=160],
+ ['Handle 2-5 words, 43 chars max, has keyword',3,p.handle.length<=43&&hw.length>=2&&hw.length<=5&&kw.split(' ').some(k=>hw.includes(k))],
+ ['Exactly 5 FAQs',3,qs.length===5],['Ingredients (INCI) heading + bullet list',3,!needsInci||hasInci],['No medical-sounding wording',3,!CLAIM.test(txt)],
+ ['No negative or uncertain sentences',3,!NEG.test(txt)],['Internal links point to active products',3,internal.every(h=>live.has(h))],['Product has images',3,imgs.length>0],
+ ['Sentences under 20 words',2,sents.every(s=>words(s).length<20)],['Real H2/H3 headings',2,heads.length>0],['2+ internal product links',2,internal.length>=2],
+ ['A neutral external link',2,external.length>=1],['Meta title 60 chars max, keyword early',2,mt.length<=60&&mt.toLowerCase().indexOf(kw.split(' ')[0])>=0&&mt.toLowerCase().indexOf(kw.split(' ')[0])<=30],
+ ['Keyword in meta description',2,md.toLowerCase().includes(kw)],['No stop words in handle',2,!hw.some(w=>STOP.has(w))],['Keyword in an FAQ answer',2,qs.some(q=>(q.answer||'').toLowerCase().includes(kw))],
+ ['FAQ keys settings and settings_en match',2,!!faq1&&!!faq2&&JSON.stringify(faq1.questions)===JSON.stringify(faq2.questions)],['No empty FAQ text',2,qs.every(q=>q.question&&q.answer)],
+ ['Every image has alt text',2,alts.every(a=>a)],['5-10 meaningful tags',2,p.tags.length>=5&&p.tags.length<=10],['No claim-word tags',2,!p.tags.some(t=>CLAIM.test(t))],
+ ['No self-link',1,!internal.includes(p.handle)],['FAQ answerHTML present',1,qs.every(q=>q.answerHTML)],['Meta title differs from meta description',1,mt!==md],
+ ['Alt texts unique and 125 chars max',1,new Set(alts).size===alts.length&&alts.every(a=>a.length<=125)],['Tags use prefix convention',1,p.tags.every(t=>/:|^\d+$/.test(t))]];
+ let tot=0,got=0;const fails=[];C.forEach(([n,w,ok])=>{tot+=w;if(ok)got+=w;else fails.push([n,w])});
+ fails.sort((a,b)=>b[1]-a[1]);return{score:Math.round(got/tot*100),fails}
+}
+async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
+ if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
+async function scan(btn,st){
+ const all=[];let c=null,more=true;
+ while(more){let d,t=0;for(;;){try{d=await gql(Q,{c});break}catch(e){if(++t>3)throw e;await new Promise(r=>setTimeout(r,1500*t))}}
+  all.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Scanning… '+all.length+' products'}
+ const live=new Set(all.map(p=>p.handle));const rows=all.map(p=>({p,...score(p,live)}));
+ const n=rows.length,avg=rows.reduce((a,r)=>a+r.score,0)/n;
+ const band=(lo,hi)=>rows.filter(r=>r.score>=lo&&r.score<=hi).length;
+ const cnt={};rows.forEach(r=>r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));
+ const bv={};rows.forEach(r=>{const v=r.p.vendor||'Other';(bv[v]=bv[v]||[]).push(r.score)});
+ D.products_worst=rows.slice().sort((a,b)=>a.score-b.score).slice(0,40).map(r=>({handle:r.p.handle,score:String(r.score),failed_checks:String(r.fails.length),top_fixes:r.fails.slice(0,2).map(f=>f[0]).join('; ')}));
+ D.product_checks=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,19).map(([check,k])=>({check,products_failing:String(k)}));
+ D.brands=Object.entries(bv).map(([brand,s])=>({brand,products:String(s.length),avg_score:String(Math.round(s.reduce((a,b)=>a+b,0)/s.length))}));
+ D.product_bands=[[50,59],[60,69],[70,79],[80,89],[90,99]].map(([a,b])=>({band:a+'-'+b,products:String(band(a,b))})).concat([{band:'100',products:String(band(100,100))}]);
+ D.summary=[{metric:'products_scored',value:String(n)},{metric:'products_avg',value:avg.toFixed(1)},{metric:'products_90plus',value:String(band(90,100))},{metric:'products_perfect',value:String(band(100,100))}];
+ for(const k in sm)delete sm[k];D.summary.forEach(r=>sm[r.metric]=r.value);
+ const stamp=new Date().toLocaleString('en',{dateStyle:'medium',timeStyle:'short'});
+ try{localStorage.setItem('seoscan',JSON.stringify({D:{products_worst:D.products_worst,product_checks:D.product_checks,brands:D.brands,product_bands:D.product_bands,summary:D.summary},stamp}))}catch(e){}
+ return stamp}
+function apply(stamp){const el=document.getElementById('scanned');if(el)el.textContent='Products rescanned '+stamp+'. Collections: Oct 24, 2026 snapshot.';draw()}
+const note=document.querySelector('header .note');const bar=document.createElement('p');bar.className='note';
+bar.innerHTML='<button class="fb on" id="rescan" style="margin:8px 0 0">Rescan products</button> <span id="scanst"></span><br><span id="scanned"></span>';note.after(bar);
+const btn=document.getElementById('rescan'),st=document.getElementById('scanst');
+try{const s=JSON.parse(localStorage.getItem('seoscan')||'null');if(s){Object.assign(D,s.D);for(const k in sm)delete sm[k];D.summary.forEach(r=>sm[r.metric]=r.value);apply(s.stamp)}}catch(e){}
+btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(btn,st);st.textContent='Done.';apply(stamp)}catch(e){st.textContent='Rescan failed: '+e.message}btn.disabled=false};
+})();
+</script>
+</body></html>
