@@ -178,7 +178,7 @@ function score(c){
  const pos=mt.toLowerCase().indexOf(kw.split(' ')[0]);
  const C=[
  ['Page text 300+ words',3,wc>=300],['After-content 50+ words',3,acw>=50],['Keyword in first sentence',3,first.includes(kw)],['Keyword in a heading',3,heads.some(h=>h.includes(kw))],
- ['Keyword density 1-1.5%',3,dens>=1&&dens<=1.5],['Keyword in collection title',3,c.title.toLowerCase().includes(kw)],['Meta description 150-160 chars',3,md.length>=150&&md.length<=160],
+ ['Keyword density 1-1.5%',3,dens>=1&&dens<=1.5],['Keyword in collection title',3,c.title.toLowerCase().replace(/[&\-–]+/g,' ').replace(/\s+/g,' ').includes(kw)],['Meta description 150-160 chars',3,md.length>=150&&md.length<=160],
  ['Handle 43 chars max, has keyword',3,c.handle.length<=43&&kw.split(' ').some(k=>hw.includes(k))],['Exactly 5 FAQs',3,qs.length===5],['No medical-sounding wording',3,!CLAIM.test(txt)],['No negative or uncertain sentences',3,!NEG.test(txt)],
  ['Sentences under 20 words',2,sents.every(s=>words(s).length<20)],['Real headings',2,heads.length>0],['Meta title 60 chars max, keyword early',2,mt.length<=60&&pos>=0&&pos<=30],
  ['Keyword in meta description',2,md.toLowerCase().includes(kw)],['No stop words in handle',2,!hw.some(w=>STOP.has(w))],['Keyword in an FAQ answer',2,qs.some(q=>(q.answer||'').toLowerCase().includes(kw))],
