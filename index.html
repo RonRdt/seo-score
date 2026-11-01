@@ -94,7 +94,12 @@ const Q=`query($c:String){products(first:40,after:$c,query:"status:active"){page
 const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
 const strip=h=>h.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
 const sentsOf=h=>strip(h.replace(/\b(Dr|Mr|Mrs|Ms|St|vs)\./g,'$1').replace(/<\/(li|p|h[1-6]|div|tr)>/gi,'. ')).split(/(?<=[.!?])\s+/).map(x=>x.replace(/^[.\s]+/,'')).filter(x=>x&&!/^[.!?:;\s]+$/.test(x));
-function kwOf(p){const w=p.handle.split('-').filter(x=>x&&!STOP.has(x)&&!/^\d+$/.test(x));return w.slice(0,3).join(' ')||p.handle.replace(/-/g,' ')}
+function kwOf(p){const hk=(()=>{const w=p.handle.split('-').filter(x=>x&&!STOP.has(x)&&!/^\d+$/.test(x));return w.slice(0,3).join(' ')||p.handle.replace(/-/g,' ')})();
+ try{const txt=strip(p.descriptionHtml||'').toLowerCase();const tk=(p.title||'').split(',')[0].toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(x=>x&&!STOP.has(x)&&!/^\d+$/.test(x)&&!/^\d/.test(x));
+  const cands=[];for(let n=3;n>=2;n--)for(let i=0;i+n<=tk.length;i++)cands.push(tk.slice(i,i+n).join(' '));
+  let best=null,bo=0;cands.forEach(c=>{const o=txt.split(c).length-1;if(o>bo||(o===bo&&best&&o>0&&c.split(' ').length>best.split(' ').length)){bo=o;best=c}});
+  const ho=hk?txt.split(hk).length-1:0;if(best&&bo>=2&&bo>ho)return best}catch(e){}
+ return hk}
 function score(p,live){
  const kw=kwOf(p).toLowerCase(),kwn=kw.split(' ').length;const html=p.descriptionHtml||'',txt=strip(html),low=txt.toLowerCase();
  const wc=words(txt).length,occ=kw?low.split(kw).length-1:0,dens=wc?occ*kwn/wc*100:0;
