@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="shopify-api-key" content="acbc06cc4cd1b14b2f25c4b252925274">
+<script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WEDOART checkout rules</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 24px; background: #f6f6f7; color: #14151a; }
+  .card { max-width: 640px; margin: 0 auto; background: #fff; border: 1px solid #e1e3e5; border-radius: 12px; padding: 24px; }
+  h1 { font-size: 20px; margin: 0 0 8px; }
+  p { font-size: 14px; line-height: 1.5; margin: 0 0 12px; }
+  .state { font-size: 15px; font-weight: 600; margin: 16px 0; }
+  .on { color: #0a7d33; } .off { color: #b3261e; }
+  button { font: inherit; font-size: 14px; font-weight: 600; padding: 10px 18px; border-radius: 8px; border: 0; background: #14151a; color: #fff; cursor: pointer; }
+  button[disabled] { opacity: .5; cursor: default; }
+  pre { font-size: 12px; background: #f6f6f7; border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-word; margin: 16px 0 0; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Hide store credit on subscriptions</h1>
+  <p>When a cart contains a subscription item, the store credit option is hidden at checkout. Subscription orders already get 7% off. Normal orders are not affected.</p>
+  <div class="state" id="state">Checking…</div>
+  <button id="btn" disabled>…</button>
+  <pre id="log" hidden></pre>
+</div>
+<script>
+const API = 'shopify:admin/api/2026-07/graphql.json';
+const HANDLE = 'hide-credit-on-subscriptions';
+const TITLE = 'Hide store credit on subscriptions';
+const $ = (id) => document.getElementById(id);
+function log(x) { const el = $('log'); el.hidden = false; el.textContent += (typeof x === 'string' ? x : JSON.stringify(x, null, 1)) + '\n'; }
+async function gql(query, variables) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }) });
+  const j = await r.json();
+  if (j.errors) log({ errors: j.errors });
+  return j.data || {};
+}
+let current = null, fnId = null;
+async function refresh() {
+  const d = await gql('{ paymentCustomizations(first: 20) { nodes { id title enabled } } shopifyFunctions(first: 50) { nodes { id title apiType } } }');
+  const list = (d.paymentCustomizations && d.paymentCustomizations.nodes) || [];
+  const fns = (d.shopifyFunctions && d.shopifyFunctions.nodes) || [];
+  const fn = fns.find((f) => /payment/i.test(f.apiType || '')) || fns[0];
+  fnId = fn ? fn.id : null;
+  current = list.find((c) => c.title === TITLE) || list[0] || null;
+  const s = $('state'), b = $('btn');
+  if (current && current.enabled) { s.textContent = 'The rule is ON.'; s.className = 'state on'; b.textContent = 'Turn rule off'; }
+  else { s.textContent = current ? 'The rule is OFF.' : 'The rule is not set up yet.'; s.className = 'state off'; b.textContent = 'Turn rule on'; }
+  b.disabled = false;
+  log({ customizations: list, functions: fns });
+}
+async function toggle() {
+  $('btn').disabled = true;
+  if (!current) {
+    let d = await gql('mutation($pc: PaymentCustomizationInput!) { paymentCustomizationCreate(paymentCustomization: $pc) { paymentCustomization { id enabled } userErrors { field message } } }', { pc: { title: TITLE, enabled: true, functionHandle: HANDLE } });
+    let res = d.paymentCustomizationCreate;
+    if ((!res || !res.paymentCustomization) && fnId) {
+      log({ firstTry: res || null });
+      d = await gql('mutation($pc: PaymentCustomizationInput!) { paymentCustomizationCreate(paymentCustomization: $pc) { paymentCustomization { id enabled } userErrors { field message } } }', { pc: { title: TITLE, enabled: true, functionId: fnId } });
+      res = d.paymentCustomizationCreate;
+    }
+    log({ create: res || null });
+  } else {
+    const d = await gql('mutation($id: ID!, $pc: PaymentCustomizationInput!) { paymentCustomizationUpdate(id: $id, paymentCustomization: $pc) { paymentCustomization { id enabled } userErrors { field message } } }', { id: current.id, pc: { enabled: !current.enabled } });
+    log({ update: d.paymentCustomizationUpdate || null });
+  }
+  await refresh();
+}
+$('btn').addEventListener('click', toggle);
+refresh().catch((e) => { $('state').textContent = 'Could not reach Shopify.'; log(String(e)); });
+</script>
+</body>
+</html>
