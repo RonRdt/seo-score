@@ -26,6 +26,14 @@
   <button id="btn" disabled>…</button>
   <pre id="log" hidden></pre>
 </div>
+
+<div class="card" style="margin-top:20px">
+  <h1>Subscription emails in other languages</h1>
+  <p>Puts the WEDOART look on the ten subscription emails in German, French, Hebrew, Russian, Arabic, Japanese and Chinese. It keeps Shopify's own translated wording.</p>
+  <div class="state" id="estate">Not started.</div>
+  <button id="ebtn">Apply the look to all languages</button>
+  <pre id="elog" hidden></pre>
+</div>
 <script>
 const API = 'shopify:admin/api/2026-07/graphql.json';
 const HANDLE = 'hide-credit-on-subscriptions';
@@ -69,6 +77,71 @@ async function toggle() {
   }
   await refresh();
 }
+
+// ---- Subscription emails: WEDOART look in the other languages ----
+const E_IDS = { subscription_new: '21764931826', payment_reminder: '21764964594', skipped: '25791004914', paused: '25791037682', expired: '21765062898', resumed: '21765095666', canceled: '25791070450', payment_failure: '21765161202', payment_failure_retrying: '21765193970', payment_failure_last_attempt: '21765226738' };
+const E_LOCALES = ['de', 'fr', 'he', 'ru', 'ar', 'ja', 'zh-TW'];
+const E_SP = "<img src=\"{{ 'notifications/spacer.png' | shopify_asset_url }}\" class=\"spacer\" height=\"1\" />";
+const E_H = '<table class="header row">';
+const E_HH = '<table class="header row" style="display:none;max-height:0;overflow:hidden;mso-hide:all">';
+function elog(x) { const el = $('elog'); el.hidden = false; el.textContent += x + '\n'; }
+async function egql(query, variables) {
+  const r = await fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }) });
+  const j = await r.json();
+  if (j.errors) throw new Error(JSON.stringify(j.errors).slice(0, 300));
+  return j.data || {};
+}
+function pieces(en) {
+  const a = en.match(/<style>[\s\S]*?<\/style>/);
+  const i = en.indexOf('<table class="row" style="width:100%;background:#FFFFFF">');
+  const j = en.indexOf(E_HH);
+  const k = en.indexOf('</div><!--wd-fixed-->');
+  const m = en.indexOf('</table>', k);
+  if (!a || i < 0 || j < i || k < 0 || m < 0 || a[0].indexOf('WEDOART') < 0) return null;
+  return { A: a[0], B: en.slice(i, j), C: en.slice(k, m + 8) };
+}
+function restyle(body, p) {
+  if (!/<style>[\s\S]*?<\/style>/.test(body) || body.indexOf(E_H) < 0 || body.split(E_SP).length !== 2) return null;
+  return body.replace(/<style>[\s\S]*?<\/style>/, () => p.A).replace(E_H, () => p.B + E_HH).replace(E_SP, () => p.C);
+}
+async function runEmails() {
+  $('ebtn').disabled = true; $('elog').textContent = '';
+  let ok = 0, same = 0, bad = 0;
+  for (const name of Object.keys(E_IDS)) {
+    const id = 'gid://shopify/EmailTemplate/' + E_IDS[name];
+    try {
+      const d = await egql('query($id: ID!) { translatableResource(resourceId: $id) { translatableContent { key digest value } } }', { id });
+      const en = ((d.translatableResource || {}).translatableContent || []).find((c) => c.key === 'body_html');
+      const p = en && pieces(en.value);
+      if (!p) { bad += E_LOCALES.length; elog(name + ': English email is not in the WEDOART look, skipped'); continue; }
+      for (const loc of E_LOCALES) {
+        $('estate').textContent = 'Working: ' + name + ' / ' + loc;
+        try {
+          const q = 'query($id: ID!, $l: String!) { translatableResource(resourceId: $id) { translations(locale: $l) { key value } } }';
+          let t = await egql(q, { id, l: loc });
+          let cur = ((t.translatableResource || {}).translations || []).find((c) => c.key === 'body_html');
+          if (cur && cur.value.indexOf('wd-cream') >= 0 && cur.value.indexOf('buyer_email_rtl') < 0) {
+            await egql('mutation($id: ID!, $k: [String!]!, $l: [String!]!) { translationsRemove(resourceId: $id, translationKeys: $k, locales: $l) { userErrors { message } } }', { id, k: ['body_html'], l: [loc] });
+            t = await egql(q, { id, l: loc });
+            cur = ((t.translatableResource || {}).translations || []).find((c) => c.key === 'body_html');
+          }
+          if (!cur) { bad++; elog(name + ' ' + loc + ': no translated email found'); continue; }
+          if (cur.value.indexOf('wd-fixed') >= 0) { same++; continue; }
+          const nb = restyle(cur.value, p);
+          if (!nb) { bad++; elog(name + ' ' + loc + ': unexpected layout, skipped'); continue; }
+          const w = await egql('mutation($id: ID!, $t: [TranslationInput!]!) { translationsRegister(resourceId: $id, translations: $t) { translations { key locale } userErrors { field message } } }', { id, t: [{ key: 'body_html', locale: loc, translatableContentDigest: en.digest, value: nb }] });
+          const ue = (w.translationsRegister || {}).userErrors || [];
+          if (ue.length) { bad++; elog(name + ' ' + loc + ': ' + ue[0].message); } else { ok++; }
+        } catch (e) { bad++; elog(name + ' ' + loc + ': ' + String(e).slice(0, 200)); }
+      }
+    } catch (e) { bad += E_LOCALES.length; elog(name + ': ' + String(e).slice(0, 200)); }
+  }
+  $('estate').textContent = 'Finished. Updated ' + ok + ', already done ' + same + ', problems ' + bad + '.';
+  $('estate').className = 'state ' + (bad ? 'off' : 'on');
+  $('ebtn').disabled = false;
+}
+$('ebtn').addEventListener('click', runEmails);
+
 $('btn').addEventListener('click', toggle);
 refresh().catch((e) => { $('state').textContent = 'Could not reach Shopify.'; log(String(e)); });
 </script>
