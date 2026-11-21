@@ -545,6 +545,30 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const rows=window.__ro
   st.textContent='Applying ('+ok+' ok, '+bad+' held back)'}
  st.textContent='Done: '+ok+' updated, '+bad+' held back';c.textContent=log.join('\n');b.disabled=false}})();
 
+/* Auto density (too-low, singular keywords) */
+(function(){const card=document.getElementById('chbtn').parentNode;
+const mk=(t)=>{const b=document.createElement('button');b.className='fb';b.textContent=t;b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);return b};
+const bp=mk('Auto density preview'),ba=mk('Auto density apply');
+const st=document.createElement('span');st.className='note';st.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(st);
+async function g(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors));return j.data}
+const T=[k=>'Many shoppers pick this '+k+' for its dependable everyday use.',k=>'This '+k+' fits easily into a simple daily routine.',k=>'Choose this '+k+' when you want a reliable, familiar favorite.',k=>'Our team is glad to recommend this '+k+' to every customer.'];
+function origCase(html,kw){const t=html.replace(/<[^>]+>/g,' ');const m=t.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+'),'i'));return m?m[0].replace(/\s+/g,' '):kw}
+function build(r){const kw=r.kw;if(!kw||/s$/.test(kw)||/ (for|and|with|of|in|to) /.test(' '+kw+' ')||/^(the|a|an) /.test(kw))return null;
+ const K=origCase(r.p.descriptionHtml||'',kw);let html=r.p.descriptionHtml,added=[];
+ for(let i=0;i<4;i++){const sent=T[i](K);const para='<p>'+sent+'</p>';
+  const cand=(html.includes('<h3')?html.replace('<h3',()=>para+'\n<h3'):html+'\n'+para);
+  const sc=window.__score({...r.p,descriptionHtml:cand},window.__live);html=cand;added.push(sent);
+  if(sc.dens>=1&&sc.dens<=1.5)return{html,added,sc};if(sc.dens>1.5)return null}
+ return null}
+async function run(apply){const rows=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%')&&r.dens<1);let ok=0,skip=0,bad=0,log=[];
+ for(const r of rows){try{const b=build(r);if(!b){skip++;continue}
+  const oldF=new Set(r.fails.map(f=>f[0]));const worse=b.sc.fails.map(f=>f[0]).filter(f=>!oldF.has(f));if(worse.length){skip++;log.push(r.p.handle+': skipped, new fail '+worse.join(';'));continue}
+  if(apply){const w=await g('mutation($p:ProductUpdateInput!){productUpdate(product:$p){userErrors{message}}}',{p:{id:r.p.id,descriptionHtml:b.html}});if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message)}
+  ok++;log.push(r.p.handle+' | '+r.kw+' | '+r.dens.toFixed(2)+' -> '+b.sc.dens.toFixed(2)+' | '+b.added.join(' '))}catch(e){bad++;log.push(r.p.handle+': ERROR '+e.message)}
+  st.textContent=(apply?'Applying ':'Previewing ')+ok+' ok, '+skip+' skipped, '+bad+' errors'}
+ st.textContent=(apply?'Done: ':'Preview: ')+ok+' fixable, '+skip+' skipped, '+bad+' errors';card.querySelector('#chout').textContent=log.join('\n')}
+bp.onclick=()=>run(false);ba.onclick=()=>run(true)})();
+
 /* FAQ comma fix */
 (function(){const c=document.getElementById('chout');if(!c)return;const card=c.parentNode;
 const b=document.createElement('button');b.className='fb';b.textContent='Fix FAQ comma';b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);
