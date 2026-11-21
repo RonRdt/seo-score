@@ -366,4 +366,42 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
 bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
 </script>
+
+<script>
+/* Fix alt text: makes image alt texts unique per product, at most 125 characters, and never empty. */
+(function(){
+async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
+ if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
+async function retry(q,v){let t=0;for(;;){try{return await gql(q,v)}catch(e){if(++t>4)throw e;await new Promise(r=>setTimeout(r,1500*t))}}}
+const cut=(t,n)=>{t=t.replace(/\s+/g,' ').trim();if(t.length<=n)return t;const c=t.slice(0,n+1);const i=c.lastIndexOf(' ');return (i>20?c.slice(0,i):t.slice(0,n)).replace(/[\s,;:\-–]+$/,'')};
+function planAlts(p){
+ const imgs=p.media.nodes.filter(m=>m.image);if(!imgs.length)return[];
+ const orig=imgs.map(m=>(m.alt||'').trim());
+ let alts=orig.map(a=>a?cut(a,125):cut(p.title,125));
+ const seen={};
+ alts=alts.map((a,i)=>{const k=a.toLowerCase();seen[k]=(seen[k]||0)+1;if(seen[k]===1)return a;const suf=' - view '+seen[k];return cut(a,125-suf.length)+suf});
+ // make sure suffixed alts did not collide with another alt
+ const used=new Set();alts=alts.map((a,i)=>{let x=a,n=2;while(used.has(x.toLowerCase())){const suf=' - view '+(n++);x=cut(a,125-suf.length)+suf}used.add(x.toLowerCase());return x});
+ const ch=[];imgs.forEach((m,i)=>{if(alts[i]!==orig[i])ch.push({id:m.id,alt:alts[i]})});return ch}
+const bar=document.createElement('div');bar.className='bar';
+bar.innerHTML='<button class="fb" id="alprev">Preview alt text</button><button class="fb on" id="alfix">Fix alt text</button><span class="note" id="alst"></span>';
+document.getElementById('barp').appendChild(bar);
+const st=document.getElementById('alst'),bp=document.getElementById('alprev'),bf=document.getElementById('alfix');
+async function run(apply){bp.disabled=bf.disabled=true;try{
+  const prods=[];let c=null,more=true;
+  while(more){const d=await retry('query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{id handle title media(first:20){nodes{... on MediaImage{id alt image{url}}}}}}}',{c});
+   prods.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Reading products… '+prods.length}
+  const work=[];for(const p of prods){const ch=planAlts(p);if(ch.length)work.push({handle:p.handle,ch})}
+  window.__alts={products:work.map(w=>w.handle),total:work.reduce((a,w)=>a+w.ch.length,0),sample:work.slice(0,5)};
+  if(!apply){st.textContent='Preview: '+work.length+' products, '+window.__alts.total+' image alt texts to change (sample in console: __alts).';return}
+  let done=0,fail=0;const errs=[];const q=work.slice();
+  async function w(){while(q.length){const o=q.shift();try{const d=await retry('mutation($f:[FileUpdateInput!]!){fileUpdate(files:$f){files{id}userErrors{field message}}}',{f:o.ch});
+    const ue=d.fileUpdate.userErrors;if(ue&&ue.length){fail++;errs.push(o.handle+': '+ue.map(e=>e.message).join('; '))}else done++}catch(e){fail++;errs.push(o.handle+': '+e.message)}
+   st.textContent='Fixing… '+done+' products done, '+fail+' failed, '+q.length+' left'}}
+  await Promise.all([w(),w(),w()]);window.__alts.errors=errs;
+  st.textContent='Done. '+done+' products fixed, '+fail+' failed'+(errs.length?' ('+errs[0].slice(0,120)+')':'')+'. Click Rescan products.';
+ }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Alt text',e)}bp.disabled=bf.disabled=false}
+bp.onclick=()=>run(false);bf.onclick=()=>run(true);
+})();
+</script>
 </body></html>
