@@ -544,5 +544,18 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const rows=window.__ro
   if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message);ok++;log.push(h+': OK dens='+s.dens.toFixed(2))}catch(e){bad++;log.push(h+': '+e.message)}
   st.textContent='Applying ('+ok+' ok, '+bad+' held back)'}
  st.textContent='Done: '+ok+' updated, '+bad+' held back';c.textContent=log.join('\n');b.disabled=false}})();
+
+/* FAQ comma fix */
+(function(){const c=document.getElementById('chout');if(!c)return;const card=c.parentNode;
+const b=document.createElement('button');b.className='fb';b.textContent='Fix FAQ comma';b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);
+const st=document.createElement('span');st.className='note';st.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(st);
+async function g(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors));return j.data}
+b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const R=(window.__rows||[]).filter(r=>r.p.f2&&/ and we will gladly help\./.test(r.p.f2.value));
+ for(const r of R){try{const d=await g('query($id:ID!){product(id:$id){f2:metafield(namespace:"faqs",key:"settings_en"){type value}}}',{id:r.p.id});const m=d.product.f2;
+  const v=m.value.replace(/ and we will gladly help\./g,', and we will gladly help.');
+  const w=await g('mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){userErrors{message}}}',{m:[{ownerId:r.p.id,namespace:'faqs',key:'settings',type:m.type,value:v},{ownerId:r.p.id,namespace:'faqs',key:'settings_en',type:m.type,value:v}]});
+  if(w.metafieldsSet.userErrors.length)throw new Error(w.metafieldsSet.userErrors[0].message);ok++}catch(e){bad++;log.push(r.p.handle+': '+e.message)}
+  st.textContent='Working '+(ok+bad)+'/'+R.length}
+ st.textContent='Done: '+ok+' fixed, '+bad+' failed';c.textContent=log.join('\n');b.disabled=false}})();
 </script>
 </body></html>
