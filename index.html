@@ -362,7 +362,7 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
    st.textContent='Fixing… '+done+' fixed, '+fail+' failed, '+q.length+' left'}}
   await Promise.all([w(),w(),w()]);
   window.__deadlinks.errors=errs;st.textContent='Done. '+done+' products fixed, '+fail+' failed; '+ur+' products still have links with no redirect target. Click Rescan products.';
- }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Dead links',e)}bp.disabled=bf.disabled=false}
+ }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Dead links',e)}finally{bp.disabled=bf.disabled=false}}
 bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
 </script>
@@ -400,7 +400,7 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
    st.textContent='Fixing… '+done+' products done, '+fail+' failed, '+q.length+' left'}}
   await Promise.all([w(),w(),w()]);window.__alts.errors=errs;
   st.textContent='Done. '+done+' products fixed, '+fail+' failed'+(errs.length?' ('+errs[0].slice(0,120)+')':'')+'. Click Rescan products.';
- }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Alt text',e)}bp.disabled=bf.disabled=false}
+ }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Alt text',e)}finally{bp.disabled=bf.disabled=false}}
 bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
 </script>
