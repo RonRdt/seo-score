@@ -176,7 +176,7 @@ function score(p,live){
  ['No self-link',1,!internal.includes(p.handle)],['FAQ answerHTML present',1,qs.every(q=>q.answerHTML)],['Meta title differs from meta description',1,mt!==md],
  ['Alt texts unique and 125 chars max',1,new Set(alts).size===alts.length&&alts.every(a=>a.length<=125)],['Tags use prefix convention',1,p.tags.every(t=>/:|^\d+$/.test(t))]];
  let tot=0,got=0;const fails=[];C.forEach(([n,w,ok])=>{tot+=w;if(ok)got+=w;else fails.push([n,w])});
- fails.sort((a,b)=>b[1]-a[1]);return{score:Math.round(got/tot*100),fails}
+ fails.sort((a,b)=>b[1]-a[1]);return{score:Math.round(got/tot*100),fails,kw,occ,wc,dens}
 }
 async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
  if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
@@ -184,7 +184,7 @@ async function scan(btn,st){
  const all=[];let c=null,more=true;
  while(more){let d,t=0;for(;;){try{d=await gql(Q,{c});break}catch(e){if(++t>3)throw e;await new Promise(r=>setTimeout(r,1500*t))}}
   all.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Scanning… '+all.length+' products'}
- const live=new Set(all.map(p=>p.handle));window.__live=live;const rows=all.map(p=>({p,...score(p,live)}));
+ const live=new Set(all.map(p=>p.handle));window.__live=live;const rows=all.map(p=>({p,...score(p,live)}));window.__rows=rows;
  const n=rows.length,avg=rows.reduce((a,r)=>a+r.score,0)/n;
  const band=(lo,hi)=>rows.filter(r=>r.score>=lo&&r.score<=hi).length;
  const cnt={};rows.forEach(r=>r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));
@@ -403,5 +403,13 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
  }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Alt text',e)}finally{bp.disabled=bf.disabled=false}}
 bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
+
+/* Density report */
+(function(){const bar=document.getElementById('barp');if(!bar)return;
+const b=document.createElement('button');b.className='fb';b.textContent='List density failures';
+const pre=document.createElement('pre');pre.id='denslist';pre.style.cssText='white-space:pre-wrap;font-size:11px;max-height:300px;overflow:auto;width:100%';
+b.onclick=()=>{const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%'));
+pre.textContent=R.length?('DENS '+R.length+'\n'+R.map(r=>[r.p.handle,r.kw,r.occ,r.wc,r.dens.toFixed(2)].join('|')).join('\n')):'Click Rescan products first.'};
+bar.appendChild(b);bar.appendChild(pre)})();
 </script>
 </body></html>
