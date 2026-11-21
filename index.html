@@ -561,7 +561,7 @@ function build(r){const kw=r.kw;if(!kw||!headOK(r.p.title,kw))return null;
  const cands=[];nodes.forEach(nd=>{let m;re.lastIndex=0;while((m=re.exec(nd.nodeValue)))cands.push({nd,idx:m.index,len:m[0].length,det:m[1]})});
  if(!cands.length)return null;
  // apply from last to first so indexes stay valid per node
- cands.sort((x,y)=>x.nd===y.nd?y.idx-x.idx:0);
+ cands.forEach(c=>c.ni=nodes.indexOf(c.nd));cands.sort((x,y)=>x.ni-y.ni||y.idx-x.idx);
  const changes=[];let sc=null;
  for(const c of cands){const old=c.nd.nodeValue;const ctx=old.slice(Math.max(0,c.idx-25),c.idx+c.len+25);c.nd.nodeValue=old.slice(0,c.idx)+c.det+' product'+old.slice(c.idx+c.len);
   const html=root.innerHTML;const t=window.__score({...r.p,descriptionHtml:html},window.__live);
