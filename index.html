@@ -363,7 +363,7 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
   await Promise.all([w(),w(),w()]);
   window.__deadlinks.errors=errs;st.textContent='Done. '+done+' products fixed, '+fail+' failed; '+ur+' products still have links with no redirect target. Click Rescan products.';
  }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Dead links',e)}bp.disabled=bf.disabled=false}
-bp.onclick=()=>run(false);bf.onclick=()=>{if(confirm('Rewrite dead product links in the descriptions of all affected products?'))run(true)};
+bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
 </script>
 </body></html>
