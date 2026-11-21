@@ -446,14 +446,11 @@ if(rs)rs.addEventListener('click',()=>{const t=setInterval(()=>{if(/^Done/.test(
 draw2();window.__densdraw=draw2})();
 /* Failing products by check */
 (function(){const dc=document.querySelector('.dens');if(!dc)return;
+const CH=[['5-10 meaningful tags','Tag count'],['Tags use prefix convention','Tag prefix'],['Keyword in an FAQ answer','FAQ keyword'],['Sentences under 20 words','Long sentences'],['Keyword in a heading','Heading'],['Meta title 60 chars max, keyword early','Meta title'],['No stop words in handle','Handle'],['2+ internal product links','Links'],['Description 300-500 words','Length']];
 const c=document.createElement('div');c.className='card';c.style.marginTop='12px';
-c.innerHTML='<h2>Products failing a check</h2><p class="note">Pick a check to list the products, with their tags. Rescan first.</p><div class="tools"><select id="chsel" class="fb"></select><button class="fb on" id="chgo">Show</button><span class="note" id="chn"></span></div><pre id="chout" style="white-space:pre-wrap;font-size:11px;max-height:320px;overflow:auto"></pre>';
+c.innerHTML='<h2>Products failing a check</h2><p class="note">Pick a check to list the products with their tags. Rescan first.</p><div class="tools" id="chbtn"></div><span class="note" id="chn"></span><pre id="chout" style="white-space:pre-wrap;font-size:11px;max-height:340px;overflow:auto"></pre>';
 dc.parentNode.insertBefore(c,dc.nextSibling);
-const sel=c.querySelector('#chsel');
-function fill(){const rows=window.__rows||[];const cnt={};rows.forEach(r=>r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));sel.innerHTML=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<option value="'+k.replace(/"/g,'&quot;')+'">'+k+' ('+v+')</option>').join('')}
-const rs=document.getElementById('rescan');if(rs)rs.addEventListener('click',()=>{const t=setInterval(()=>{const s=document.getElementById('scanst');if(s&&/^Done/.test(s.textContent)){clearInterval(t);fill()}},800)});
-sel.onfocus=fill;
-c.querySelector('#chgo').onclick=()=>{const k=sel.value;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]===k));c.querySelector('#chn').textContent=R.length+' products';
- c.querySelector('#chout').textContent=R.map(r=>r.p.handle+' | '+(r.p.tags||[]).join(', ')).join('\n')}})();
+CH.forEach(([k,l])=>{const b=document.createElement('button');b.className='fb';b.textContent=l;b.onclick=()=>{const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]===k));c.querySelector('#chn').textContent=l+': '+R.length+' products';
+ c.querySelector('#chout').textContent=R.map(r=>r.p.handle+' | '+(r.p.tags||[]).join(', ')).join('\n')};c.querySelector('#chbtn').appendChild(b)})})();
 </script>
 </body></html>
