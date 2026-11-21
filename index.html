@@ -318,4 +318,52 @@ try{const s=JSON.parse(localStorage.getItem('seoscanb')||'null');if(s&&s.rows&&s
 btn.onclick=async()=>{btn.disabled=true;st.textContent='Starting…';try{const stamp=await scan(st);st.textContent='Done.';apply(stamp)}catch(e){const m=e&&e.message?e.message:String(e);st.textContent=/access|scope|read_content|denied|403|Access denied/i.test(m)?'Needs the read_content permission. Approve the app update in Shopify, then try again.':'Rescan failed: '+m;console.error('SEO Score blog rescan',e)}btn.disabled=false};
 })();
 </script>
+
+<script>
+/* Fix dead links: rewrites product links that point to renamed or removed products, following the store's URL redirects (needs write_products and read_online_store_navigation). */
+(function(){
+async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
+ if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
+async function retry(q,v){let t=0;for(;;){try{return await gql(q,v)}catch(e){if(++t>4)throw e;await new Promise(r=>setTimeout(r,1500*t))}}}
+const hrefRe=/href="((?:https?:\/\/(?:www\.)?wedoart-il\.com)?\/products\/)([^"?#\/]+)([^"]*)"/gi;
+async function load(st){
+ const reds={};let c=null,more=true,n=0;
+ while(more){const d=await retry('query($c:String){urlRedirects(first:250,after:$c,query:"path:/products/*"){pageInfo{hasNextPage endCursor}nodes{path target}}}',{c});
+  d.urlRedirects.nodes.forEach(r=>{const m=r.path.match(/^\/products\/([^\/?#]+)$/);const t=r.target.match(/\/products\/([^\/?#]+)/);if(m&&t)reds[m[1]]=t[1]});
+  more=d.urlRedirects.pageInfo.hasNextPage;c=d.urlRedirects.pageInfo.endCursor;n+=d.urlRedirects.nodes.length;st.textContent='Reading redirects… '+n}
+ const prods=[];c=null;more=true;
+ while(more){const d=await retry('query($c:String){products(first:50,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{id handle descriptionHtml}}}',{c});
+  prods.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Reading products… '+prods.length}
+ return{reds,prods}}
+function plan(reds,prods){
+ const live=new Set(prods.map(p=>p.handle));const out=[],unres={};
+ for(const p of prods){let changed=false;
+  let html=p.descriptionHtml||'';
+  html=html.replace(hrefRe,(m,pre,h,rest)=>{if(live.has(h))return m;let x=h,k=0;while(reds[x]&&!live.has(x)&&k++<6)x=reds[x];
+   if(live.has(x)){changed=true;return 'href="'+pre+x+rest+'"'}
+   (unres[p.handle]=unres[p.handle]||[]).push(h);return m});
+  // a link that now points at the product itself is removed (text stays)
+  const selfRe=new RegExp('<a [^>]*href="(?:https?:\\/\\/(?:www\\.)?wedoart-il\\.com)?\\/products\\/'+p.handle.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:[?#][^"]*)?"[^>]*>([\\s\\S]*?)<\\/a>','gi');
+  if(changed&&selfRe.test(html)){html=html.replace(selfRe,'$1')}
+  if(changed)out.push({id:p.id,handle:p.handle,html})}
+ return{out,unres}}
+const bar=document.createElement('div');bar.className='bar';
+bar.innerHTML='<button class="fb" id="dlprev">Preview dead links</button><button class="fb on" id="dlfix">Fix dead links</button><span class="note" id="dlst"></span>';
+document.getElementById('barp').appendChild(bar);
+const st=document.getElementById('dlst'),bp=document.getElementById('dlprev'),bf=document.getElementById('dlfix');
+let cache=null;
+async function run(apply){bp.disabled=bf.disabled=true;try{
+  const {reds,prods}=await load(st);const {out,unres}=plan(reds,prods);cache={out,unres};
+  const ur=Object.keys(unres).length;window.__deadlinks={out:out.map(o=>o.handle),unres};
+  if(!apply){st.textContent='Preview: '+out.length+' products can be fixed from redirects; '+ur+' products have links with no redirect target (see console: __deadlinks).';return}
+  let done=0,fail=0;const errs=[];const q=out.slice();
+  async function w(){while(q.length){const o=q.shift();try{const d=await retry('mutation($i:ProductUpdateInput!){productUpdate(product:$i){product{id}userErrors{field message}}}',{i:{id:o.id,descriptionHtml:o.html}});
+    const ue=d.productUpdate.userErrors;if(ue&&ue.length){fail++;errs.push(o.handle+': '+ue.map(e=>e.message).join('; '))}else done++}catch(e){fail++;errs.push(o.handle+': '+e.message)}
+   st.textContent='Fixing… '+done+' fixed, '+fail+' failed, '+q.length+' left'}}
+  await Promise.all([w(),w(),w()]);
+  window.__deadlinks.errors=errs;st.textContent='Done. '+done+' products fixed, '+fail+' failed; '+ur+' products still have links with no redirect target. Click Rescan products.';
+ }catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Dead links',e)}bp.disabled=bf.disabled=false}
+bp.onclick=()=>run(false);bf.onclick=()=>{if(confirm('Rewrite dead product links in the descriptions of all affected products?'))run(true)};
+})();
+</script>
 </body></html>

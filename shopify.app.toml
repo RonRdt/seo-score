@@ -5,8 +5,8 @@ application_url = "https://ronrdt.github.io/seo-score/"
 embedded = true
 
 [access_scopes]
-# Needed by the Rescan products button (reads products and their FAQ metafields)
-scopes = "read_products,read_content"
+# Rescan reads products, FAQ metafields and articles; Fix dead links writes product descriptions and reads URL redirects
+scopes = "read_products,write_products,read_content,read_online_store_navigation"
 use_legacy_install_flow = false
 
 [access.admin]
