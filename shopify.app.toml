@@ -6,7 +6,7 @@ embedded = true
 
 [access_scopes]
 # Needed by the Rescan products button (reads products and their FAQ metafields)
-scopes = "read_products"
+scopes = "read_products,read_content"
 use_legacy_install_flow = false
 
 [access.admin]
