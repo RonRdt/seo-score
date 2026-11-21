@@ -404,12 +404,45 @@ async function run(apply){bp.disabled=bf.disabled=true;try{
 bp.onclick=()=>run(false);bf.onclick=()=>run(true);
 })();
 
-/* Density report */
-(function(){const bar=document.getElementById('barp');if(!bar)return;
-const b=document.createElement('button');b.className='fb';b.textContent='List density failures';
-const pre=document.createElement('pre');pre.id='denslist';pre.style.cssText='white-space:pre-wrap;font-size:11px;max-height:300px;overflow:auto;width:100%';
-b.onclick=()=>{const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%'));
-pre.textContent=R.length?('DENS '+R.length+'\n'+R.map(r=>[r.p.handle,r.kw,r.occ,r.wc,r.dens.toFixed(2)].join('|')).join('\n')):'Click Rescan products first.'};
-bar.appendChild(b);bar.appendChild(pre)})();
+/* UI v2: Fixes card + density table */
+(function(){
+const css=document.createElement('style');css.textContent=`
+.fixes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:12px;margin-top:12px}
+.fx{background:var(--panel);box-shadow:var(--shadow);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.fx h3{margin:0;font-size:14px;font-weight:650}.fx p{margin:0;color:var(--mut);font-size:12.5px}
+.fx .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.fx .stt{font-size:12px;color:var(--mut);min-height:1.2em}
+.fx .prog{height:6px;border-radius:4px;background:var(--grid);overflow:hidden;display:none}.fx .prog i{display:block;height:100%;width:0;background:var(--ok);transition:width .3s}
+.fb.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}
+.dens .tw{max-height:22rem}.dens td.hi{color:var(--bad);font-weight:600}.dens td.lo{color:var(--warn);font-weight:600}
+`;document.head.appendChild(css);
+const barp=document.getElementById('barp'),secp=document.getElementById('secp');if(!barp||!secp)return;
+const g=id=>document.getElementById(id);
+function card(title,desc,btns,st){const d=document.createElement('div');d.className='fx';d.innerHTML='<h3>'+title+'</h3><p>'+desc+'</p><div class="row"></div><div class="prog"><i></i></div>';
+ const row=d.querySelector('.row');btns.forEach(b=>b&&row.appendChild(b));st.classList.add('stt');d.appendChild(st);
+ const pr=d.querySelector('.prog'),bar=pr.firstChild;
+ new MutationObserver(()=>{const m=/(\d+)\s+products done.*?(\d+)\s+left/.exec(st.textContent)||/(\d+)\s+done.*?(\d+)\s+left/.exec(st.textContent);
+  if(m){pr.style.display='block';bar.style.width=Math.round(m[1]/(+m[1]+ +m[2])*100)+'%'}else if(/^Done/.test(st.textContent)){pr.style.display='block';bar.style.width='100%'}}).observe(st,{childList:true,characterData:true,subtree:true});
+ return d}
+const wrap=document.createElement('div');wrap.className='fixes';
+const rs=g('rescan');if(rs)rs.classList.add('pri');
+const scanst=g('scanst'),scanned=g('scanned');
+const c0=document.createElement('div');c0.className='fx';c0.innerHTML='<h3>Scan</h3><p>Reads every active product from the store and scores it. Run it after any fix.</p><div class="row"></div>';
+if(rs)c0.querySelector('.row').appendChild(rs);[scanst,scanned].forEach(e=>{if(e){e.style.display='block';c0.appendChild(e)}});
+wrap.appendChild(c0);
+wrap.appendChild(card('Dead links','Repairs product links that point to old handles, using your store redirects.',[g('dlprev'),g('dlfix')],g('dlst')));
+wrap.appendChild(card('Image alt text','Fills empty alt texts, cuts those over 125 characters and makes duplicates unique.',[g('alprev'),g('alfix')],g('alst')));
+const kp=secp.querySelector('.kpis');kp.parentNode.insertBefore(wrap,kp);
+/* density table */
+const dc=document.createElement('div');dc.className='card dens';dc.style.marginTop='12px';
+dc.innerHTML='<h2>Keyword density failures</h2><p class="note">Target 1-1.5%. Red is too high, amber too low. Rescan to refresh.</p><div class="tools"><button class="fb" id="dall">All</button><button class="fb" id="dhi">Too high</button><button class="fb" id="dlo">Too low</button><span class="note" id="dcount"></span></div><div class="tw"><table><thead><tr><th>Product</th><th>Keyword</th><th>Uses</th><th>Words</th><th>Density</th></tr></thead><tbody id="dbody"></tbody></table></div><pre id="denslist" style="display:none"></pre>';
+kp.parentNode.insertBefore(dc,kp.nextSibling.nextSibling||null);
+let mode='all';
+function draw2(){const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%')).filter(r=>mode==='all'||(mode==='hi'?r.dens>1.5:r.dens<1)).sort((a,b)=>Math.abs(b.dens-1.25)-Math.abs(a.dens-1.25));
+ g('dbody').innerHTML=R.length?R.map(r=>'<tr><td class="h">'+r.p.handle+'<small>'+(r.p.title||'')+'</small></td><td>'+r.kw+'</td><td class="num">'+r.occ+'</td><td class="num">'+r.wc+'</td><td class="num '+(r.dens>1.5?'hi':'lo')+'">'+r.dens.toFixed(2)+'%</td></tr>').join(''):'<tr><td colspan=5 class="empty">'+((window.__rows)?'None.':'Click Rescan products first.')+'</td></tr>';
+ g('dcount').textContent=R.length+' products';
+ g('denslist').textContent='DENS '+R.length+'\n'+R.map(r=>[r.p.handle,r.kw,r.occ,r.wc,r.dens.toFixed(2)].join('|')).join('\n')}
+[['dall','all'],['dhi','hi'],['dlo','lo']].forEach(([id,m])=>g(id).onclick=()=>{mode=m;['dall','dhi','dlo'].forEach(x=>g(x).classList.toggle('on',x===id));draw2()});g('dall').classList.add('on');
+if(rs)rs.addEventListener('click',()=>{const t=setInterval(()=>{if(/^Done/.test(scanst.textContent)){clearInterval(t);draw2()}},800)});
+draw2();window.__densdraw=draw2})();
 </script>
 </body></html>
