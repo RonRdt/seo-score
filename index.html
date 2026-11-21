@@ -488,5 +488,27 @@ b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fail
   if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message);ok++}catch(e){bad++;log.push(r.p.handle+': '+e.message)}
   st.textContent='Working '+(ok+skip+bad)+'/'+R.length+' ('+ok+' changed, '+skip+' unchanged, '+bad+' failed)'}
  st.textContent='Done: '+ok+' changed, '+skip+' unchanged, '+bad+' failed';c.textContent=log.join('\n');b.disabled=false}})();
+
+/* Split long plain sentences */
+(function(){const c=document.getElementById('chout');if(!c)return;const card=c.parentNode;
+const b=document.createElement('button');b.className='fb';b.textContent='Split long plain sentences';b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);
+const st=document.createElement('span');st.className='note';st.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(st);
+async function g(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors));return j.data}
+const W=t=>window.__words(t).length;
+const PAT=/,\s+(?:and|while|then|so|which|but)\s+|;\s+/;
+function fixNode(t){if(W(t)<20)return t;if(/^\s*(Contains|Water|Per \d|Ingredients)/i.test(t)||(t.match(/\(/g)||[]).length>=3)return t;
+ const parts=t.split(/(?<=[.!?])(\s+)/);let out='';
+ for(let i=0;i<parts.length;i++){let p=parts[i];if(i%2===0&&W(p)>=20){let guard=0;while(W(p)>=20&&guard++<3){const m=p.match(PAT);if(!m)break;const idx=m.index;const a=p.slice(0,idx),rest=p.slice(idx+m[0].length);if(W(a)<5||W(rest)<4)break;
+   const kw=/^,\s+(then|but)/i.exec(m[0]);const lead=kw?kw[1][0].toUpperCase()+kw[1].slice(1)+' ':'';
+   const r2=(lead?lead:'')+(lead?rest:rest.charAt(0).toUpperCase()+rest.slice(1));p=a+'. '+r2;}}
+  out+=p}
+ return out}
+b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Sentences under 20 words'));let ok=0,skip=0,bad=0,log=[];
+ for(const r of R){try{const h=r.p.descriptionHtml||'';const nh=h.replace(/>([^<]+)</g,(m,t)=>'>'+fixNode(t)+'<');
+  if(nh===h){skip++;continue}
+  const w=await g('mutation($p:ProductUpdateInput!){productUpdate(product:$p){userErrors{message}}}',{p:{id:r.p.id,descriptionHtml:nh}});
+  if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message);ok++}catch(e){bad++;log.push(r.p.handle+': '+e.message)}
+  st.textContent='Working '+(ok+skip+bad)+'/'+R.length+' ('+ok+' changed, '+skip+' unchanged, '+bad+' failed)'}
+ st.textContent='Done: '+ok+' changed, '+skip+' unchanged, '+bad+' failed';c.textContent=log.join('\n');b.disabled=false}})();
 </script>
 </body></html>
