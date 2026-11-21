@@ -510,5 +510,22 @@ b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fail
   if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message);ok++}catch(e){bad++;log.push(r.p.handle+': '+e.message)}
   st.textContent='Working '+(ok+skip+bad)+'/'+R.length+' ('+ok+' changed, '+skip+' unchanged, '+bad+' failed)'}
  st.textContent='Done: '+ok+' changed, '+skip+' unchanged, '+bad+' failed';c.textContent=log.join('\n');b.disabled=false}})();
+
+/* Trim sizes from long link sentences */
+(function(){const c=document.getElementById('chout');if(!c)return;const card=c.parentNode;
+const b=document.createElement('button');b.className='fb';b.textContent='Trim sizes in long links';b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);
+const st=document.createElement('span');st.className='note';st.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(st);
+async function g(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors));return j.data}
+const long=p=>window.__sents(p).filter(x=>window.__words(x).length>=20).length;
+const SZ=/(?:,|\s)\s*\d+(?:[.,]\d+)?\s*(?:ml|g|gr|gram|grams|oz|fl\.?\s?oz|kg|l)\b(?:\s*\/\s*\d+(?:[.,]\d+)?\s*(?:oz|fl\.?\s?oz|ml|g))?(?:\s*\([^)]*\))?/gi;
+function fixP(p){if(!long(p))return p;let q=p.replace(/<a [^>]*>[\s\S]*?<\/a>/gi,a=>a.replace(/(<a [^>]*>)([\s\S]*?)(<\/a>)/i,(m,o,t,cl)=>o+t.replace(SZ,'').replace(/\s*[|–—-]\s*(Dr\.? ?Fischer|by .*)$/i,'').replace(/\s+/g,' ').trim()+cl));
+ q=q.replace(/\s+([.,])/g,'$1').replace(/\.{2,}/g,'.');return long(q)<long(p)?q:p}
+b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Sentences under 20 words'));let ok=0,skip=0,bad=0,log=[];
+ for(const r of R){try{const h=r.p.descriptionHtml||'';const nh=h.replace(/<p[^>]*>[\s\S]*?<\/p>/gi,fixP);
+  if(nh===h){skip++;continue}
+  const w=await g('mutation($p:ProductUpdateInput!){productUpdate(product:$p){userErrors{message}}}',{p:{id:r.p.id,descriptionHtml:nh}});
+  if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message);ok++}catch(e){bad++;log.push(r.p.handle+': '+e.message)}
+  st.textContent='Working '+(ok+skip+bad)+'/'+R.length+' ('+ok+' changed, '+skip+' unchanged, '+bad+' failed)'}
+ st.textContent='Done: '+ok+' changed, '+skip+' unchanged, '+bad+' failed';c.textContent=log.join('\n');b.disabled=false}})();
 </script>
 </body></html>
