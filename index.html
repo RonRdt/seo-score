@@ -451,6 +451,6 @@ const c=document.createElement('div');c.className='card';c.style.marginTop='12px
 c.innerHTML='<h2>Products failing a check</h2><p class="note">Pick a check to list the products with their tags. Rescan first.</p><div class="tools" id="chbtn"></div><span class="note" id="chn"></span><pre id="chout" style="white-space:pre-wrap;font-size:11px;max-height:340px;overflow:auto"></pre>';
 dc.parentNode.insertBefore(c,dc.nextSibling);
 CH.forEach(([k,l])=>{const b=document.createElement('button');b.className='fb';b.textContent=l;b.onclick=()=>{const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]===k));c.querySelector('#chn').textContent=l+': '+R.length+' products';
- c.querySelector('#chout').textContent=R.map(r=>{if(k==='Keyword in an FAQ answer'){let q=[];try{q=JSON.parse(r.p.f2.value).questions}catch(e){}return r.p.handle+' | '+r.kw+' | '+q.map(x=>(x.answer||'').slice(0,90)).join(' ## ')}return r.p.handle+' | '+(r.p.tags||[]).join(', ')}).join('\n')};c.querySelector('#chbtn').appendChild(b)})})();
+ c.querySelector('#chout').textContent=R.map(r=>{if(k==='Keyword in an FAQ answer'){return r.p.handle+' | '+r.kw}return r.p.handle+' | '+(r.p.tags||[]).join(', ')}).join('\n')};c.querySelector('#chbtn').appendChild(b)})})();
 </script>
 </body></html>
