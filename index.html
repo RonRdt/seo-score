@@ -136,7 +136,7 @@ draw();
 const STOP=new Set('a an and the of for to in on with by from at or is are your our you best new pack ml g gr mg kg oz'.split(' '));
 const CLAIM=/\b(treat|treats|treatment|cure|cures|heal|heals|healing|prevent|prevents|detox|clinical|clinically|anti-inflammatory|hypoallergenic|repair|repairs|disease|infection|eczema|psoriasis|acne|cancer|diabetes)\b/i;
 const NEG=/\b(we don't know|we do not know|cannot find|can't find|not available|unknown|no information)\b/i;
-const Q=`query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{handle title vendor tags descriptionHtml seo{title description}
+const Q=`query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{id handle title vendor tags descriptionHtml seo{title description}
  media(first:20){nodes{alt ... on MediaImage{image{url}}}} f1:metafield(namespace:"faqs",key:"settings"){value} f2:metafield(namespace:"faqs",key:"settings_en"){value}}}}`;
 const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
 const strip=h=>h.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
@@ -184,7 +184,7 @@ async function scan(btn,st){
  const all=[];let c=null,more=true;
  while(more){let d,t=0;for(;;){try{d=await gql(Q,{c});break}catch(e){if(++t>3)throw e;await new Promise(r=>setTimeout(r,1500*t))}}
   all.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Scanning… '+all.length+' products'}
- const live=new Set(all.map(p=>p.handle));window.__live=live;const rows=all.map(p=>({p,...score(p,live)}));window.__rows=rows;
+ const live=new Set(all.map(p=>p.handle));window.__live=live;const rows=all.map(p=>({p,...score(p,live)}));window.__rows=rows;window.__score=score;
  const n=rows.length,avg=rows.reduce((a,r)=>a+r.score,0)/n;
  const band=(lo,hi)=>rows.filter(r=>r.score>=lo&&r.score<=hi).length;
  const cnt={};rows.forEach(r=>r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1));
@@ -444,5 +444,60 @@ function draw2(){const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='K
 [['dall','all'],['dhi','hi'],['dlo','lo']].forEach(([id,m])=>g(id).onclick=()=>{mode=m;['dall','dhi','dlo'].forEach(x=>g(x).classList.toggle('on',x===id));draw2()});g('dall').classList.add('on');
 if(rs)rs.addEventListener('click',()=>{const t=setInterval(()=>{if(/^Done/.test(scanst.textContent)){clearInterval(t);draw2()}},800)});
 draw2();window.__densdraw=draw2})();
+/* Fix keyword density: swaps surplus repeats of a too-frequent keyword for its last word, then re-scores. */
+(function(){
+const g=id=>document.getElementById(id);
+const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const DET=/(?:^|[\s(,;:])(?:the|this|these|a|an|your|our|its|each|every|of|for|with|and|to|in|on|by|from|or|than|as|is|are)\s+$/i;
+function planOne(r){
+ const kw=r.kw,hw=kw.split(' ');const last=hw[hw.length-1];
+ if(!(r.dens>1.5)||hw.length<2||last.length<4||/\d/.test(last))return null;
+ const target=Math.max(2,Math.floor(1.4*r.wc/100/hw.length)),need=r.occ-target;if(need<=0)return null;
+ const parts=(r.p.descriptionHtml||'').split(/(<[^>]+>)/);let depth=0;const re=new RegExp(esc(kw),'gi');const spots=[];let first=true;
+ parts.forEach((t,i)=>{
+  if(i%2){const m=/^<(\/?)(h[1-6]|a|li|th|td|figcaption)\b/i.exec(t);if(m){depth+=m[1]?-1:1;if(depth<0)depth=0}return}
+  if(depth)return;let m;re.lastIndex=0;
+  while((m=re.exec(t))){const b=t.slice(0,m.index),a=t.slice(m.index+m[0].length);
+   const okB=m.index===0||/[\s(]$/.test(b)||i>0,okA=!/^[\p{L}\p{N}]/u.test(a);
+   const sentStart=m.index===0||/[.!?]\s+$/.test(b);
+   if(!okA)continue;
+   if(first){first=false;continue}           // always keep the first usable mention
+   if(!(sentStart||DET.test(b)||/[\s(]$/.test(b)&&DET.test(' '+b.split(/\s+/).slice(-2).join(' ')+' ')))continue;
+   spots.push({i,idx:m.index,len:m[0].length,cap:/^[A-Z]/.test(m[0])||sentStart&&false})}
+ });
+ if(spots.length<need)return null;
+ const pick=spots.slice(-need);const edits={};pick.forEach(sp=>(edits[sp.i]=edits[sp.i]||[]).push(sp));
+ Object.keys(edits).forEach(i=>{let t=parts[i];edits[i].sort((a,b)=>b.idx-a.idx).forEach(sp=>{const rep=sp.cap?last[0].toUpperCase()+last.slice(1):last;t=t.slice(0,sp.idx)+rep+t.slice(sp.idx+sp.len)});parts[i]=t});
+ const html=parts.join('');const p2={...r.p,descriptionHtml:html};const r2=window.__score(p2,window.__live);
+ const was=new Set(r.fails.map(f=>f[0])),now=r2.fails.map(f=>f[0]);
+ if(now.includes('Keyword density 1-1.5%')||now.some(n=>!was.has(n))||r2.score<=r.score)return null;
+ const ctx=pick[pick.length-1],tx=parts[ctx.i];
+ return{id:r.p.id,handle:r.p.handle,kw,from:r.dens.toFixed(2),to:r2.dens.toFixed(2),html,sample:tx.slice(Math.max(0,ctx.idx-40),ctx.idx+40+last.length)}}
+function planAll(){const R=(window.__rows||[]).filter(r=>r.p.id&&r.fails.some(f=>f[0]==='Keyword density 1-1.5%'));const ok=[],skip=[];R.forEach(r=>{let o=null;try{o=planOne(r)}catch(e){}o?ok.push(o):skip.push(r)});return{ok,skip,total:R.length}}
+async function gql(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
+const bp=document.createElement('button');bp.className='fb';bp.textContent='Preview density';bp.id='dnprev';
+const bf=document.createElement('button');bf.className='fb on';bf.textContent='Fix density';bf.id='dnfix';
+const st=document.createElement('span');st.className='note';st.id='dnst';
+const card=document.createElement('div');card.className='fx';card.innerHTML='<h3>Keyword density</h3><p>Where a keyword is repeated too often (over 1.5%), swaps surplus mentions for its last word. Every change is re-scored and only kept if the product improves.</p><div class="row"></div><div class="prog"><i></i></div>';
+card.querySelector('.row').append(bp,bf);st.classList.add('stt');card.appendChild(st);
+const fx=document.querySelector('.fixes');if(fx)fx.appendChild(card);else{document.getElementById('barp').append(bp,bf,st)}
+const pr=card.querySelector('.prog'),bar=pr&&pr.firstChild;
+let cache=null;
+async function run(apply){bp.disabled=bf.disabled=true;try{
+ if(!window.__rows){st.textContent='Click Rescan products first.';return}
+ const {ok,skip,total}=planAll();cache=ok;window.__dens={ok,skip:skip.map(r=>r.p.handle+'|'+r.kw+'|'+r.dens.toFixed(2))};
+ const pre=g('denslist');
+ if(!apply){st.textContent='Preview: '+ok.length+' of '+total+' can be fixed automatically; '+skip.length+' need a manual rewrite.';
+  if(pre){pre.style.display='block';pre.textContent='SAMPLES\n'+ok.slice(0,15).map(o=>o.handle+' ['+o.kw+'] '+o.from+'% -> '+o.to+'% ... '+o.sample).join('\n')+'\n\nMANUAL '+skip.length+'\n'+skip.map(r=>r.p.handle+'|'+r.kw+'|'+r.occ+'|'+r.wc+'|'+r.dens.toFixed(2)).join('\n')}
+  return}
+ let done=0,fail=0;const errs=[];const q=ok.slice();
+ async function w(){while(q.length){const o=q.shift();let t=0;for(;;){try{const d=await gql('mutation($i:ProductUpdateInput!){productUpdate(product:$i){product{id}userErrors{field message}}}',{i:{id:o.id,descriptionHtml:o.html}});
+   const ue=d.productUpdate.userErrors;if(ue&&ue.length){fail++;errs.push(o.handle+': '+ue.map(e=>e.message).join('; '))}else done++;break}catch(e){if(++t>3){fail++;errs.push(o.handle+': '+e.message);break}await new Promise(r=>setTimeout(r,1500*t))}}
+  st.textContent='Fixing… '+done+' products done, '+fail+' failed, '+q.length+' left';if(pr){pr.style.display='block';bar.style.width=Math.round((done+fail)/ok.length*100)+'%'}}}
+ await Promise.all([w(),w(),w()]);window.__dens.errors=errs;
+ st.textContent='Done. '+done+' products fixed, '+fail+' failed; '+skip.length+' need a manual rewrite. Click Rescan products.';
+}catch(e){st.textContent='Failed: '+(e&&e.message?e.message:String(e));console.error('Density',e)}finally{bp.disabled=bf.disabled=false}}
+bp.onclick=()=>run(false);bf.onclick=()=>run(true);
+})();
 </script>
 </body></html>
