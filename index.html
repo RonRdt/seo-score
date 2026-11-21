@@ -545,26 +545,33 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const rows=window.__ro
   st.textContent='Applying ('+ok+' ok, '+bad+' held back)'}
  st.textContent='Done: '+ok+' updated, '+bad+' held back';c.textContent=log.join('\n');b.disabled=false}})();
 
-/* Auto density (too-low, singular keywords) */
+/* Auto density (too-high: swap "this/the KW" for "this/the product") */
 (function(){const card=document.getElementById('chbtn').parentNode;
 const mk=(t)=>{const b=document.createElement('button');b.className='fb';b.textContent=t;b.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(b);return b};
 const bp=mk('Auto density preview'),ba=mk('Auto density apply');
 const st=document.createElement('span');st.className='note';st.style.marginLeft='8px';card.querySelector('#chbtn').appendChild(st);
 async function g(q,v){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q,variables:v})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors));return j.data}
-const T=[k=>'Many shoppers pick this '+k+' for its dependable everyday use.',k=>'This '+k+' fits easily into a simple daily routine.',k=>'Choose this '+k+' when you want a reliable, familiar favorite.',k=>'Our team is glad to recommend this '+k+' to every customer.'];
-function origCase(html,kw){const t=html.replace(/<[^>]+>/g,' ');const m=t.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+'),'i'));return m?m[0].replace(/\s+/g,' '):kw}
-function build(r){const kw=r.kw;if(!kw||/s$/.test(kw)||/ (for|and|with|of|in|to) /.test(' '+kw+' ')||/^(the|a|an) /.test(kw))return null;
- const K=origCase(r.p.descriptionHtml||'',kw);let html=r.p.descriptionHtml,added=[];
- for(let i=0;i<4;i++){const sent=T[i](K);const para='<p>'+sent+'</p>';
-  const cand=(html.includes('<h3')?html.replace('<h3',()=>para+'\n<h3'):html+'\n'+para);
-  const sc=window.__score({...r.p,descriptionHtml:cand},window.__live);html=cand;added.push(sent);
-  if(sc.dens>=1&&sc.dens<=1.5)return{html,added,sc};if(sc.dens>1.5)return null}
+const esc=x=>x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&').replace(/\s+/g,'\\s+');
+function headOK(title,kw){let t=(title||'').split(',')[0].toLowerCase().replace(/[\d.]+\s*(ml|g|gr|kg|l|oz|mg|capsules?|tablets?|caplets?|pcs|units?)\b/g,'').replace(/[^\p{L}\p{N}\s]+/gu,' ').replace(/\s+/g,' ').trim();return t.endsWith(kw)}
+function build(r){const kw=r.kw;if(!kw||!headOK(r.p.title,kw))return null;
+ const doc=new DOMParser().parseFromString('<div id="x">'+r.p.descriptionHtml+'</div>','text/html');const root=doc.getElementById('x');
+ const firstP=root.querySelector('p');const nodes=[];const wk=doc.createTreeWalker(root,4);let n;
+ while((n=wk.nextNode())){let e=n.parentNode,skip=false;while(e&&e!==root){if(/^(A|H1|H2|H3|H4|H5|H6)$/.test(e.nodeName)||e===firstP){skip=true;break}e=e.parentNode}if(!skip)nodes.push(n)}
+ const re=new RegExp('\\b(this|the)\\s+'+esc(kw)+'(?=[.,;:!?]|\\s+(?:is|has|comes|brings|gives|offers|fits|makes|delivers|contains|works|feels|suits|adds|stays|and|or|with|in|for|from|that)\\b|\\s*$)','gi');
+ const cands=[];nodes.forEach(nd=>{let m;re.lastIndex=0;while((m=re.exec(nd.nodeValue)))cands.push({nd,idx:m.index,len:m[0].length,det:m[1]})});
+ if(!cands.length)return null;
+ // apply from last to first so indexes stay valid per node
+ cands.sort((x,y)=>x.nd===y.nd?y.idx-x.idx:0);
+ const changes=[];let sc=null;
+ for(const c of cands){const old=c.nd.nodeValue;const ctx=old.slice(Math.max(0,c.idx-25),c.idx+c.len+25);c.nd.nodeValue=old.slice(0,c.idx)+c.det+' product'+old.slice(c.idx+c.len);
+  const html=root.innerHTML;const t=window.__score({...r.p,descriptionHtml:html},window.__live);
+  if(t.dens<1||t.kw!==kw){c.nd.nodeValue=old;break}changes.push(ctx.replace(/\s+/g,' ')+'  =>  '+c.det+' product');sc=t;if(t.dens<=1.5)return{html,changes,sc}}
  return null}
-async function run(apply){const rows=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%')&&r.dens<1);let ok=0,skip=0,bad=0,log=[];
+async function run(apply){const rows=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%')&&r.dens>1.5);let ok=0,skip=0,bad=0,log=[];
  for(const r of rows){try{const b=build(r);if(!b){skip++;continue}
-  const oldF=new Set(r.fails.map(f=>f[0]));const worse=b.sc.fails.map(f=>f[0]).filter(f=>!oldF.has(f));if(worse.length){skip++;log.push(r.p.handle+': skipped, new fail '+worse.join(';'));continue}
+  const oldF=new Set(r.fails.map(f=>f[0]));const worse=b.sc.fails.map(f=>f[0]).filter(f=>!oldF.has(f));if(worse.length){skip++;continue}
   if(apply){const w=await g('mutation($p:ProductUpdateInput!){productUpdate(product:$p){userErrors{message}}}',{p:{id:r.p.id,descriptionHtml:b.html}});if(w.productUpdate.userErrors.length)throw new Error(w.productUpdate.userErrors[0].message)}
-  ok++;log.push(r.p.handle+' | '+r.kw+' | '+r.dens.toFixed(2)+' -> '+b.sc.dens.toFixed(2)+' | '+b.added.join(' '))}catch(e){bad++;log.push(r.p.handle+': ERROR '+e.message)}
+  ok++;log.push(r.p.handle+' | '+r.kw+' | '+r.dens.toFixed(2)+' -> '+b.sc.dens.toFixed(2)+'\n   '+b.changes.join('\n   '))}catch(e){bad++;log.push(r.p.handle+': ERROR '+e.message)}
   st.textContent=(apply?'Applying ':'Previewing ')+ok+' ok, '+skip+' skipped, '+bad+' errors'}
  st.textContent=(apply?'Done: ':'Preview: ')+ok+' fixable, '+skip+' skipped, '+bad+' errors';card.querySelector('#chout').textContent=log.join('\n')}
 bp.onclick=()=>run(false);ba.onclick=()=>run(true)})();
