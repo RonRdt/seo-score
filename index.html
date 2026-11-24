@@ -61,9 +61,9 @@ td.ac{text-align:right;white-space:nowrap}
 .xl{margin:0 0 8px 22px}.xl summary{cursor:pointer;color:var(--mut);font-size:12.5px}.xl ul{margin:6px 0;padding-left:18px;font-size:12.5px}.xl li{margin:5px 0}
 .out{white-space:pre-wrap;font-size:11.5px;max-height:340px;overflow:auto;margin:8px 0 0}.out:empty{display:none}
 .bulk{box-shadow:0 0 0 1px var(--warn)}.bulk .tools{flex-direction:column;align-items:stretch}.brow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.fb.arm{background:var(--bad);color:#fff;border-color:var(--bad)}
+.fb.arm,.lk.arm{background:var(--bad);color:#fff;border-color:var(--bad)}.lk.fx1{font-weight:600}
 #toast{position:fixed;left:16px;bottom:76px;transform:translateY(20px);background:var(--accent);color:var(--on-accent);padding:9px 16px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:20;max-width:min(32rem,90vw)}#toast.on{opacity:1;transform:none}
-@media(max-width:700px){.tw{overflow-x:auto}th{top:0}.amain{grid-template-columns:5.2rem 1fr 3.2rem auto}.arow .det{padding-left:4px}}
+@media(max-width:700px){.acts{flex-wrap:wrap;justify-content:flex-end}td.ac{white-space:normal}.tw{overflow-x:auto}th{top:0}.amain{grid-template-columns:5.2rem 1fr 3.2rem auto}.arow .det{padding-left:4px}}
 @media(prefers-reduced-motion:reduce){#toast{transition:none}}
 </style>
 </head><body>
@@ -112,7 +112,7 @@ const idb=(()=>{let p;const open=()=>p||(p=new Promise((res,rej)=>{try{const r=i
  return{get:k=>open().then(db=>new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})).catch(()=>{try{return JSON.parse(localStorage.getItem('seo3_'+k)||'null')}catch(e){return null}}),
  set:(k,v)=>open().then(db=>new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})).catch(()=>{try{localStorage.setItem('seo3_'+k,JSON.stringify(v))}catch(e){}})}})();
 const A={p:[],c:[],b:[],full:{p:false,c:false,b:false},keep:{},stamp:{},n:{},diff:{}};
-const SEO={one:{},hooks:[],A,LOC};window.SEO=SEO;window.__A=A;
+const SEO={one:{},hooks:[],sent:[],A,LOC};window.SEO=SEO;window.__A=A;
 async function gqlA(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
  if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
 SEO.gql=gqlA;
@@ -142,7 +142,7 @@ function bars(id,rows,lab,val,max,cls,fmt,emptyMsg){const el=$(id);el.textConten
 function chipsOf(a,max){const f=document.createDocumentFragment();a.slice(0,max).forEach(x=>{const s=document.createElement('span');s.className='chip';s.textContent=x;f.appendChild(s)});if(a.length>max){const s=document.createElement('span');s.className='chip m';s.textContent='+'+(a.length-max);s.title=a.slice(max).join('; ');f.appendChild(s)}return f}
 const urlOf=it=>STOREURL+(it.t==='p'?'/products/':it.t==='c'?'/collections/':'/blogs/'+(it.blog||'tips-knowledge')+'/')+it.handle;
 const admOf=it=>it.id?'shopify://admin/'+({p:'products/',c:'collections/',b:'articles/'}[it.t])+String(it.id).split('/').pop():'';
-let noteT;function note(msg){let n=$('toast');if(!n){n=document.createElement('div');n.id='toast';n.setAttribute('role','status');document.body.appendChild(n)}n.textContent=msg;n.classList.add('on');clearTimeout(noteT);noteT=setTimeout(()=>n.classList.remove('on'),4500)}
+let noteT;function note(msg){let n=$('toast');if(!n){n=document.createElement('div');n.id='toast';n.setAttribute('role','status');document.body.appendChild(n)}n.textContent=msg;n.classList.add('on');clearTimeout(noteT);noteT=setTimeout(()=>n.classList.remove('on'),Math.min(12000,4500+msg.length*35))}
 SEO.note=note;
 async function rescanOne(it,btn){const fn=SEO.one[it.t];if(!fn){note('Rescan is not ready yet. Reload the page.');return}
  btn.disabled=true;const t0=btn.textContent;btn.textContent='Scanning…';
@@ -153,7 +153,36 @@ async function rescanOne(it,btn){const fn=SEO.one[it.t];if(!fn){note('Rescan is 
 function acts(it){const f=document.createElement('span');f.className='acts';const a1=admOf(it);
  if(a1){const a=document.createElement('a');a.href=a1;a.target='_top';a.textContent='Edit';a.className='lk';a.title='Open in the Shopify admin';f.appendChild(a)}
  const v=document.createElement('a');v.href=urlOf(it);v.target='_blank';v.rel='noopener';v.textContent='View';v.className='lk';v.title='Open on the store';f.appendChild(v);
- const b=document.createElement('button');b.type='button';b.className='lk';b.textContent='Rescan';b.title='Score this one again from the store';b.onclick=e=>{e.stopPropagation();rescanOne(it,b)};f.appendChild(b);return f}
+ const b=document.createElement('button');b.type='button';b.className='lk';b.textContent='Rescan';b.title='Score this one again from the store';b.onclick=e=>{e.stopPropagation();rescanOne(it,b)};f.appendChild(b);
+ if(it.score<100){const x=document.createElement('button');x.type='button';x.className='lk fx1';x.textContent='Fix';x.title=canFix(it)?'Apply the automatic fix for this item, then rescan it':'No automatic fix for these checks';
+  x.onclick=e=>{e.stopPropagation();if(!canFix(it)){note('No automatic fix for: '+it.fails.map(f=>f[0]).join(', ')+'. Use Edit, or ask Claude to rewrite it.');return}
+   if(x.dataset.armed!=='1'){x.dataset.armed='1';x.textContent='Confirm fix';x.classList.add('arm');setTimeout(()=>{if(x.dataset.armed==='1'){x.dataset.armed='';x.classList.remove('arm');x.textContent='Fix'}},6000);return}
+   x.dataset.armed='';x.classList.remove('arm');runFix(it,x)};f.appendChild(x)}
+ return f}
+/* Fix: only the changes that need no writing. Each text change is re-scored first and held back if it would break another check. */
+const FIXABLE=['Every image has alt text','Alt texts unique and 125 chars max','Internal links point to active products','Keyword density 1-1.5%','Sentences under 20 words'];
+function canFix(it){return it.t==='p'&&!!it.id&&it.fails.some(f=>FIXABLE.includes(f[0])&&(f[0]!=='Keyword density 1-1.5%'||it.dens>1.5))}
+async function fixOne(it){const P=SEO.P;if(!P||!it.id)throw new Error('Run "Rescan products" first');
+ const live=window.__live||(A.full.p?new Set(A.p.map(x=>x.handle)):null),lv=live||{has:()=>true};if(!window.__live)window.__live=lv;
+ const p=(await P.gql('query($id:ID!){product(id:$id){'+P.FIELDS+'}}',{id:it.id})).product;if(!p)throw new Error('Product not found');
+ const r0=P.score(p,lv),names0=new Set(r0.fails.map(f=>f[0])),has=n=>names0.has(n),done=[],held=[],text=[];let html=p.descriptionHtml||'';
+ if(has('Internal links point to active products')&&live){const re=/href="((?:https?:\/\/(?:www\.)?wedoart-il\.com)?\/products\/)([^"?#\/]+)([^"]*)"/gi;const deadH=[...new Set([...html.matchAll(re)].map(m=>m[2]).filter(h=>!live.has(h)))];const map={};
+  for(const h of deadH){let x=h,k=0;while(!live.has(x)&&k++<6){const d=await gqlA('query($q:String!){urlRedirects(first:5,query:$q){nodes{path target}}}',{q:'path:/products/'+x});const n=d.urlRedirects.nodes.find(r=>r.path==='/products/'+x);const t=n&&n.target.match(/\/products\/([^\/?#]+)/);if(!t)break;x=t[1]}if(live.has(x))map[h]=x}
+  const nh=html.replace(re,(m,pre,h,rest)=>map[h]?'href="'+pre+map[h]+rest+'"':m);if(nh!==html){html=nh;text.push('dead links repaired')}else held.push('the dead link has no redirect to follow')}
+ if(has('Sentences under 20 words')){let h2=html;SEO.sent.forEach(f=>{h2=f(h2)});if(h2!==html){html=h2;text.push('long sentences split')}else held.push('the long sentences need a rewrite')}
+ if(has('Keyword density 1-1.5%')&&r0.dens>1.5){const cur={...p,descriptionHtml:html},b=SEO.densBuild?SEO.densBuild({p:cur,...P.score(cur,lv)}):null;if(b){html=b.html;text.push('keyword density lowered')}else held.push('the keyword density needs a rewrite')}
+ else if(has('Keyword density 1-1.5%'))held.push('the keyword density is too low and needs a rewrite');
+ if(html!==(p.descriptionHtml||'')){const r1=P.score({...p,descriptionHtml:html},lv),worse=r1.fails.map(f=>f[0]).filter(n=>!names0.has(n));
+  if(worse.length||r1.score<r0.score)held.push('the text change was held back because it would break: '+(worse.join(', ')||'the score'));
+  else{const w=await gqlA('mutation($i:ProductUpdateInput!){productUpdate(product:$i){userErrors{message}}}',{i:{id:p.id,descriptionHtml:html}});const ue=w.productUpdate.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);done.push(...text)}}
+ if((has('Every image has alt text')||has('Alt texts unique and 125 chars max'))&&SEO.planAlts){const d=await gqlA('query($id:ID!){product(id:$id){title media(first:20){nodes{... on MediaImage{id alt image{url}}}}}}',{id:p.id});const ch=SEO.planAlts(d.product);
+  if(ch.length){const w=await gqlA('mutation($f:[FileUpdateInput!]!){fileUpdate(files:$f){userErrors{message}}}',{f:ch});const ue=w.fileUpdate.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);done.push(ch.length+' image alt text'+(ch.length===1?'':'s')+' set')}}
+ [...names0].filter(n=>!FIXABLE.includes(n)).forEach(n=>held.push(n+' needs a manual edit'));
+ return{done,held}}
+async function runFix(it,btn){btn.disabled=true;btn.textContent='Fixing…';
+ try{const r=await fixOne(it);let n=it;if(r.done.length){n=await SEO.one.p(it);sync();const i=A.p.findIndex(x=>x.handle===it.handle);if(i>=0)A.p[i]=n;if(A.full.p)save();else A.keep.p=true}
+  note((it.title||it.handle)+': '+(r.done.length?'fixed ('+r.done.join(', ')+'), now '+n.score+'.':'nothing could be fixed automatically.')+(r.held.length?' Still open: '+r.held.join('; ')+'.':''));draw()}
+ catch(e){console.error('SEO Score fix',e);note('Fix failed: '+(e&&e.message?e.message:e));btn.disabled=false;btn.textContent='Fix'}}
 const WT={3:'Critical',2:'Major',1:'Minor'};
 function detailOf(it){const d=document.createElement('div');d.className='det';
  if(!it.fails.length){const p=document.createElement('p');p.textContent='All checks pass.';d.appendChild(p)}
@@ -263,8 +292,9 @@ function changes(){const el=$('chgbody');el.textContent='';let any=false;
   list(d.down,x=>'Dropped: '+(x.ti||x.h)+' ('+x.from+' → '+x.to+')','dn');list(d.added,x=>'New: '+(x.ti||x.h)+' ('+x.to+')','nw');list(d.up,x=>'Improved: '+(x.ti||x.h)+' ('+x.from+' → '+x.to+')','up')});
  $('chg').hidden=!any}
 /* Extra checks that do not change the score */
-function listBox(title,items,line){const d=document.createElement('details');d.className='xl';const s=document.createElement('summary');s.textContent=title;d.appendChild(s);
- const u=document.createElement('ul');items.slice(0,60).forEach(it=>{const li=document.createElement('li');li.textContent=line(it)+' ';const a=acts(it);li.appendChild(a);u.appendChild(li)});
+const xopen={};
+function listBox(title,items,line,extra){const d=document.createElement('details');d.className='xl';d.open=!!xopen[title];d.ontoggle=()=>{xopen[title]=d.open};const s=document.createElement('summary');s.textContent=title;d.appendChild(s);
+ const u=document.createElement('ul');items.slice(0,60).forEach(it=>{const li=document.createElement('li');li.textContent=line(it)+' ';const a=acts(it);if(extra)a.appendChild(extra(it));li.appendChild(a);u.appendChild(li)});
  if(items.length>60){const li=document.createElement('li');li.className='note';li.textContent='and '+f0(items.length-60)+' more. Use Export to get the full list.';u.appendChild(li)}d.appendChild(u);return d}
 const nameOf=it=>(it.barcode?it.barcode+' · ':'')+(it.title||it.handle);
 function extras(){
@@ -274,13 +304,24 @@ function extras(){
   const row=(ok,t)=>{const p=document.createElement('p');p.className='xr '+(ok?'ok':'no');p.textContent=t;xp.appendChild(p)};
   row(!ml.length,ml.length?plural(ml.length,'product')+(ml.length===1?' lacks':' lack')+' FAQs in at least one of the 7 other languages.':'Every product has FAQs in all 7 other languages.');
   if(ml.length)xp.appendChild(listBox('Show products with missing FAQ languages',ml,it=>nameOf(it)+' — missing: '+it.loc.join(', ')));
+  if(ml.length){const n=document.createElement('p');n.className='note';n.style.marginLeft='22px';n.textContent='No button can fix this one: the FAQs have to be translated. Export the list, or ask Claude to write the missing translations.';xp.appendChild(n)}
   row(!hm.length,hm.length?plural(hm.length,'product')+(hm.length===1?' looks like a hair product but lacks':' look like hair products but lack')+' the collection:hair-care tag.':'Every product that looks like a hair product has the collection:hair-care tag.');
-  if(hm.length)xp.appendChild(listBox('Show hair products without the tag',hm,nameOf));
+  if(hm.length){const all=document.createElement('button');all.className='fb';all.style.margin='0 0 6px 22px';all.textContent='Add the tag to all '+hm.length;
+   all.onclick=async()=>{if(all.dataset.armed!=='1'){all.dataset.armed='1';all.textContent='Click again to add the tag to '+hm.length+' products';all.classList.add('arm');setTimeout(()=>{if(all.dataset.armed==='1'){all.dataset.armed='';all.classList.remove('arm');all.textContent='Add the tag to all '+hm.length}},6000);return}
+    all.dataset.armed='';all.classList.remove('arm');all.disabled=true;let ok=0,bad=0;for(const it of hm.slice()){try{await addHairTag(it);ok++}catch(e){bad++;console.error('Hair tag',it.handle,e)}all.textContent='Adding… '+(ok+bad)+' of '+hm.length}
+    save();note('Hair Care tag added to '+ok+' products'+(bad?', '+bad+' failed':'')+'.');draw()};
+   xp.appendChild(all);
+   xp.appendChild(listBox('Show hair products without the tag',hm,nameOf,it=>{const b=document.createElement('button');b.type='button';b.className='lk';b.textContent='Add tag';b.title='Adds collection:hair-care to this product in the store';
+    b.onclick=async e=>{e.stopPropagation();b.disabled=true;b.textContent='Adding…';try{await addHairTag(it);save();note('Hair Care tag added: '+(it.title||it.handle));draw()}catch(x){console.error(x);note('Could not add the tag: '+(x&&x.message?x.message:x));b.disabled=false;b.textContent='Add tag'}};return b}))}
   if(hx.length){row(false,plural(hx.length,'product')+(hx.length===1?' carries the collection:hair-care tag but does not look like a hair product. Check it by eye.':' carry the collection:hair-care tag but do not look like hair products. Check them by eye.'));xp.appendChild(listBox('Show tagged products to check',hx,nameOf))}}
  const xc=$('xc');xc.textContent='';
  if(!A.full.c||!A.c.some(r=>r.loc)){const e=document.createElement('p');e.className='note';e.textContent='Run "Rescan collections" once to fill this check.';xc.appendChild(e)}
  else{const ml=A.c.filter(r=>r.loc&&r.loc.length);const p=document.createElement('p');p.className='xr '+(ml.length?'no':'ok');p.textContent=ml.length?plural(ml.length,'collection')+(ml.length===1?' lacks':' lack')+' FAQs in at least one of the 7 other languages.':'Every collection has FAQs in all 7 other languages.';xc.appendChild(p);
   if(ml.length)xc.appendChild(listBox('Show collections with missing FAQ languages',ml,it=>(it.title||it.handle)+' — missing: '+it.loc.join(', ')))}}
+/* the one fix that needs no writing: add the Hair Care collection tag */
+async function addHairTag(it){if(!it.id)throw new Error('Rescan products first');const d=await gqlA('mutation($id:ID!,$t:[String!]!){tagsAdd(id:$id,tags:$t){userErrors{message}}}',{id:it.id,t:['collection:hair-care']});
+ const ue=d.tagsAdd&&d.tagsAdd.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);it.tags=[...(it.tags||[]),'collection:hair-care'];it.hair='';
+ if(window.__rows){const r=window.__rows.find(x=>x.p.handle===it.handle);if(r&&!r.p.tags.includes('collection:hair-care'))r.p.tags.push('collection:hair-care')}}
 /* Export */
 function csvOf(items){const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
  const rows=[['Type','Barcode','Title','Handle','Score','Failing checks','Details','Missing FAQ languages','Hair Care tag','Store link']];
@@ -370,6 +411,7 @@ function compact(r){const p=r.p,v=p.variants&&p.variants.nodes[0],has=p.tags.inc
 SEO.one.p=async it=>{const d=it.id?await gql('query($id:ID!){product(id:$id){'+FIELDS+'}}',{id:it.id}):await gql('query($h:String!){product:productByIdentifier(identifier:{handle:$h}){'+FIELDS+'}}',{h:it.handle});
  const p=d.product;if(!p)throw new Error('Product not found');const live=window.__live||(SEO.A.full.p?new Set(SEO.A.p.map(x=>x.handle)):{has:()=>true});const r={p,...score(p,live)};
  if(window.__rows){const i=window.__rows.findIndex(x=>x.p.handle===it.handle);if(i>=0)window.__rows[i]=r}return compact(r)};
+window.__score=score;window.__sents=sentsOf;window.__words=words;SEO.P={score,FIELDS,gql,compact};
 async function gql(query,variables){const r=await fetch('shopify:admin/api/2025-10/graphql.json',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
  if(!r.ok)throw new Error('Admin API returned '+r.status);const j=await r.json();if(j.errors)throw new Error(j.errors.map(e=>e.message).join('; '));return j.data}
 async function scan(btn,st){
@@ -579,6 +621,7 @@ function planAlts(p){
  // make sure suffixed alts did not collide with another alt
  const used=new Set();alts=alts.map((a,i)=>{let x=a,n=2;while(used.has(x.toLowerCase())){const suf=' - view '+(n++);x=cut(a,125-suf.length)+suf}used.add(x.toLowerCase());return x});
  const ch=[];imgs.forEach((m,i)=>{if(alts[i]!==orig[i])ch.push({id:m.id,alt:alts[i]})});return ch}
+SEO.planAlts=planAlts;
 const bar=document.createElement('div');bar.className='bar';
 bar.innerHTML='<button class="fb" id="alprev">Preview alt text</button><button class="fb on" id="alfix">Fix alt text</button><span class="note" id="alst"></span>';
 document.getElementById('barp').appendChild(bar);
@@ -687,6 +730,7 @@ const LEAD=['Another option is ','You could also choose ','Also consider '];
 function fixP(p){if(!window.__sents(p).some(x=>window.__words(x).length>=20))return p;let n=0,out=p;
  for(let i=0;i<3;i++){const m=out.match(SEP);if(!m)break;const the=/the/i.test(m[2])?'the ':'';out=out.replace(SEP,'$1. '+LEAD[n%3]+the);n++}
  return out}
+SEO.sent.push(h=>h.replace(/<p[^>]*>[\s\S]*?<\/p>/gi,fixP));
 b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Sentences under 20 words'));let ok=0,skip=0,bad=0,log=[];
  for(const r of R){try{const h=r.p.descriptionHtml||'';const nh=h.replace(/<p[^>]*>[\s\S]*?<\/p>/gi,fixP);
   if(nh===h){skip++;continue}
@@ -709,6 +753,7 @@ function fixNode(t){if(W(t)<20)return t;if(/^\s*(Contains|Water|Per \d|Ingredien
    const r2=(lead?lead:'')+(lead?rest:rest.charAt(0).toUpperCase()+rest.slice(1));p=a+'. '+r2;}}
   out+=p}
  return out}
+SEO.sent.push(h=>h.replace(/>([^<]+)</g,(m,t)=>'>'+fixNode(t)+'<'));
 b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Sentences under 20 words'));let ok=0,skip=0,bad=0,log=[];
  for(const r of R){try{const h=r.p.descriptionHtml||'';const nh=h.replace(/>([^<]+)</g,(m,t)=>'>'+fixNode(t)+'<');
   if(nh===h){skip++;continue}
@@ -726,6 +771,7 @@ const long=p=>window.__sents(p).filter(x=>window.__words(x).length>=20).length;
 const SZ=/(?:,|\s)\s*\d+(?:[.,]\d+)?\s*(?:ml|g|gr|gram|grams|oz|fl\.?\s?oz|kg|l)\b(?:\s*\/\s*\d+(?:[.,]\d+)?\s*(?:oz|fl\.?\s?oz|ml|g))?(?:\s*\([^)]*\))?/gi;
 function fixP(p){if(!long(p))return p;let q=p.replace(/<a [^>]*>[\s\S]*?<\/a>/gi,a=>a.replace(/(<a [^>]*>)([\s\S]*?)(<\/a>)/i,(m,o,t,cl)=>o+t.replace(SZ,'').replace(/\s*[|–—-]\s*(Dr\.? ?Fischer|by .*)$/i,'').replace(/\s+/g,' ').trim()+cl));
  q=q.replace(/\s+([.,])/g,'$1').replace(/\.{2,}/g,'.');return long(q)<long(p)?q:p}
+SEO.sent.push(h=>h.replace(/<p[^>]*>[\s\S]*?<\/p>/gi,fixP));
 b.onclick=async()=>{b.disabled=true;const R=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Sentences under 20 words'));let ok=0,skip=0,bad=0,log=[];
  for(const r of R){try{const h=r.p.descriptionHtml||'';const nh=h.replace(/<p[^>]*>[\s\S]*?<\/p>/gi,fixP);
   if(nh===h){skip++;continue}
@@ -773,6 +819,7 @@ function build(r){const kw=r.kw;if(!kw||!headOK(r.p.title,kw))return null;
   const html=root.innerHTML;const t=window.__score({...r.p,descriptionHtml:html},window.__live);
   if(t.dens<1||t.kw!==kw){c.nd.nodeValue=old;break}changes.push(ctx.replace(/\s+/g,' ')+'  =>  '+c.det+' product');sc=t;if(t.dens<=1.5)return{html,changes,sc}}
  return null}
+SEO.densBuild=build;
 async function run(apply){const rows=(window.__rows||[]).filter(r=>r.fails.some(f=>f[0]==='Keyword density 1-1.5%')&&r.dens>1.5);let ok=0,skip=0,bad=0,log=[];
  for(const r of rows){try{const b=build(r);if(!b){skip++;continue}
   const oldF=new Set(r.fails.map(f=>f[0]));const worse=b.sc.fails.map(f=>f[0]).filter(f=>!oldF.has(f));if(worse.length){skip++;continue}
