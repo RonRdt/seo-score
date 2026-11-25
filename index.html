@@ -153,7 +153,15 @@ async function rescanOne(it,btn){const fn=SEO.one[it.t];if(!fn){note('Rescan is 
 let DONE={};try{DONE=JSON.parse(localStorage.getItem('seo_done')||'{}')||{}}catch(e){DONE={}}
 const dkey=it=>it.t+':'+it.handle,dsig=it=>it.fails.map(f=>f[0]).sort().join('|');
 const isDone=it=>it.score<100&&DONE[dkey(it)]===dsig(it);
-function setDone(it,on){if(on)DONE[dkey(it)]=dsig(it);else delete DONE[dkey(it)];try{localStorage.setItem('seo_done',JSON.stringify(DONE))}catch(e){}draw()}
+let doneOwner=null,doneWhere='this browser only';
+async function pushDone(){if(!doneOwner)return false;try{const d=await gqlA('mutation($m:[MetafieldsSetInput!]!){metafieldsSet(metafields:$m){userErrors{message}}}',{m:[{ownerId:doneOwner,namespace:'seo_score',key:'done',type:'json',value:JSON.stringify(DONE)}]});
+  if(d.metafieldsSet.userErrors.length)throw new Error(d.metafieldsSet.userErrors[0].message);doneWhere='the store';return true}catch(e){doneWhere='this browser only';note('Could not save "marked done" in the store ('+(e&&e.message?e.message:e)+'). It is saved in this browser only.');return false}}
+async function loadDone(){try{const d=await gqlA('{currentAppInstallation{id metafield(namespace:"seo_score",key:"done"){value}}}');const ai=d&&d.currentAppInstallation;if(!ai||!ai.id)return;doneOwner=ai.id;
+  let remote=null;try{remote=ai.metafield?JSON.parse(ai.metafield.value):null}catch(e){}
+  if(remote&&typeof remote==='object'){const localOnly=Object.keys(DONE).filter(k=>!(k in remote));DONE=Object.assign({},remote,Object.fromEntries(localOnly.map(k=>[k,DONE[k]])));doneWhere='the store';try{localStorage.setItem('seo_done',JSON.stringify(DONE))}catch(e){}if(localOnly.length)await pushDone()}
+  else if(Object.keys(DONE).length)await pushDone();else doneWhere='the store';
+  draw()}catch(e){}}
+function setDone(it,on){if(on)DONE[dkey(it)]=dsig(it);else delete DONE[dkey(it)];try{localStorage.setItem('seo_done',JSON.stringify(DONE))}catch(e){}draw();pushDone().then(()=>draw())}
 function acts(it){const f=document.createElement('span');f.className='acts';const a1=admOf(it);
  if(a1){const a=document.createElement('a');a.href=a1;a.target='_top';a.textContent='Edit';a.className='lk';a.title='Open in the Shopify admin';f.appendChild(a)}
  const v=document.createElement('a');v.href=urlOf(it);v.target='_blank';v.rel='noopener';v.textContent='View';v.className='lk';v.title='Open on the store';f.appendChild(v);
@@ -281,7 +289,7 @@ function attention(){const el=$('attnlist');el.textContent='';const low=A[TAB].f
   m.append(tg,ti,p,ch,acts(it));r.appendChild(m);
   const d=document.createElement('div');d.hidden=!open[ok];if(open[ok])d.appendChild(detailOf(it));r.appendChild(d);
   m.onclick=e=>{if(e.target.closest('a,button'))return;open[ok]=!open[ok];if(!d.firstChild)d.appendChild(detailOf(it));d.hidden=!open[ok]};el.appendChild(r)});
- {const acc=A[TAB].filter(isDone);if(acc.length){const d=document.createElement('details');d.className='xl';d.open=!!open['acc'+TAB];d.ontoggle=()=>{open['acc'+TAB]=d.open};const sm=document.createElement('summary');sm.textContent=f0(acc.length)+' marked done (accepted as it is)';d.appendChild(sm);
+ {const acc=A[TAB].filter(isDone);if(acc.length){const d=document.createElement('details');d.className='xl';d.open=!!open['acc'+TAB];d.ontoggle=()=>{open['acc'+TAB]=d.open};const sm=document.createElement('summary');sm.textContent=f0(acc.length)+' marked done (accepted as it is), saved in '+doneWhere;d.appendChild(sm);
   acc.forEach(it=>{const r=document.createElement('div');r.className='arow';const m=document.createElement('div');m.className='amain';const ti=document.createElement('span');ti.className='ati';ti.textContent=it.title||it.handle;if(it.barcode){const s2=document.createElement('small');s2.textContent=it.barcode;ti.appendChild(s2)}
    const p=document.createElement('span');p.className='pill pg';p.textContent=it.score;const ch=document.createElement('span');ch.className='ach hn';ch.appendChild(chipsOf(it.fails.map(x=>x[0]),2));m.append(ti,p,ch,acts(it));r.appendChild(m);d.appendChild(r)});el.appendChild(d)}}
  const more=$('attnmore');more.hidden=low.length<=8;more.textContent=attnAll?'Show fewer':'Show all '+f0(low.length);
@@ -348,6 +356,7 @@ $('exlow').onclick=()=>exportCsv(false);$('exall').onclick=()=>exportCsv(true);$
 const t0=(()=>{try{return localStorage.getItem('seotab')}catch(e){return null}})();sh(TABS.includes(t0)?t0:'p');
 draw();
 /* saved scans from earlier visits, then a cheap count to spot items added since */
+loadDone();
 idb.get('A').then(s=>{if(s&&s.full){['p','c','b'].forEach(t=>{if(s.full[t]){A[t]=s[t]||[];A.full[t]=true}});Object.assign(A.stamp,s.stamp||{});Object.assign(A.n,s.n||{});Object.assign(A.diff,s.diff||{});draw()}
  return gqlA('{productsCount(query:"status:active"){count} collectionsCount{count}}')}).then(d=>{SEO.fresh={};
  if(A.full.p&&d.productsCount&&A.n.p!=null&&d.productsCount.count!==A.n.p)SEO.fresh.p=[d.productsCount.count,A.n.p];
