@@ -218,7 +218,8 @@ function table(id,key){const st=S[key],cols=COLS[key],tb=$(id).querySelector('tb
  if(data.length>st.lim){const td=msg('Showing '+f0(st.lim)+' of '+f0(data.length)+'. ');const b=document.createElement('button');b.className='fb';b.textContent='Show more';b.onclick=()=>{st.lim+=200;draw()};td.appendChild(b)}}
 function head(id,key){$(id).querySelectorAll('th[data-k]').forEach(th=>{const go=()=>{const st=S[key],k=th.dataset.k;if(st.k===k)st.asc=!st.asc;else{st.k=k;st.asc=ASC.includes(k)}draw()};th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}}})}
 document.querySelectorAll('.fb[data-f]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.fb[data-g="'+b.dataset.g+'"]').forEach(x=>x.classList.remove('on'));b.classList.add('on');S[b.dataset.g].f=b.dataset.f;draw()});
-const TABS=['p','c','b'];const sh=(t,user)=>{TABS.forEach(x=>{$('sec'+x).style.display=x===t?'':'none';$('tab'+x).classList.toggle('on',x===t);$('tab'+x).setAttribute('aria-selected',x===t)});try{localStorage.setItem('seotab',t)}catch(e){}
+const TABS=['p','c','b'];let TAB='p';const sh=(t,user)=>{TAB=t;TABS.forEach(x=>{$('sec'+x).style.display=x===t?'':'none';$('tab'+x).classList.toggle('on',x===t);$('tab'+x).setAttribute('aria-selected',x===t)});try{localStorage.setItem('seotab',t)}catch(e){}
+ try{attention();changes()}catch(e){}
  if(user){const y=$('tabsanchor').offsetTop;if(window.scrollY>y)window.scrollTo(0,y)}};
 TABS.forEach(t=>$('tab'+t).onclick=()=>sh(t,true));
 head('tp','p');head('tc','c');head('tb','b');$('qp').oninput=e=>{S.p.q=e.target.value;draw()};$('qc').oninput=e=>{S.c.q=e.target.value;draw()};$('qb').oninput=e=>{S.b.q=e.target.value;draw()};
@@ -263,9 +264,10 @@ function drawBlogs(){const B=A.b,bs=B.map(r=>r.score);
 function stamps(){[['p','scanned','Products'],['c','scannedc','Collections'],['b','scannedb','Blogs']].forEach(([t,id,l])=>{const e=$(id);if(e&&A.stamp[t])e.textContent=l+' rescanned '+A.stamp[t]+'.'})}
 /* Needs attention: everything below 100, all three types together */
 let attnAll=false;
-function attention(){const el=$('attnlist');el.textContent='';const low=[...A.p,...A.c,...A.b].filter(r=>r.score<100).sort((a,b)=>a.score-b.score||a.t.localeCompare(b.t)||String(a.handle).localeCompare(String(b.handle)));
+function attention(){const el=$('attnlist');el.textContent='';const low=A[TAB].filter(r=>r.score<100).sort((a,b)=>a.score-b.score||a.t.localeCompare(b.t)||String(a.handle).localeCompare(String(b.handle)));
  $('attnn').textContent=low.length?'('+f0(low.length)+')':'';
- if(!low.length){const e=document.createElement('div');e.className='empty';e.textContent='Nothing needs attention. Everything scored is at 100.';el.appendChild(e)}
+ {const pn=$('attn').querySelector('p.note');if(pn)pn.textContent='Every '+({p:'product',c:'collection',b:'article'})[TAB]+' below 100, weakest first. Click a line to see why.'}
+ if(!low.length){const e=document.createElement('div');e.className='empty';e.textContent='Nothing needs attention. Every '+({p:'product',c:'collection',b:'article'})[TAB]+' scored is at 100.';el.appendChild(e)}
  (attnAll?low:low.slice(0,8)).forEach(it=>{const r=document.createElement('div');r.className='arow';const ok='a:'+it.t+it.handle;
   const m=document.createElement('div');m.className='amain';const tg=document.createElement('span');tg.className='tg t'+it.t;tg.textContent=TYPE[it.t];
   const ti=document.createElement('span');ti.className='ati';ti.textContent=it.title||it.handle;if(it.barcode){const s=document.createElement('small');s.textContent=it.barcode;ti.appendChild(s)}
@@ -282,7 +284,7 @@ function attention(){const el=$('attnlist');el.textContent='';const low=[...A.p,
 $('attnmore').onclick=()=>{attnAll=!attnAll;attention()};
 /* What changed between the last two full scans */
 function changes(){const el=$('chgbody');el.textContent='';let any=false;
- [['p','Products'],['c','Collections'],['b','Blogs']].forEach(([t,l])=>{const d=A.diff[t];if(!d)return;any=true;
+ [['p','Products'],['c','Collections'],['b','Blogs']].filter(x=>x[0]===TAB).forEach(([t,l])=>{const d=A.diff[t];if(!d)return;any=true;
   const h=document.createElement('p');h.className='chl';const b=document.createElement('b');b.textContent=l+': ';h.appendChild(b);
   const n=d.up.length+d.down.length+d.added.length+d.removed.length;
   h.appendChild(document.createTextNode(n?[d.down.length?d.down.length+' dropped':'',d.up.length?d.up.length+' improved':'',d.added.length?d.added.length+' new':'',d.removed.length?d.removed.length+' no longer listed':''].filter(Boolean).join(', ')+'.':'no change.'));
@@ -854,5 +856,17 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const R=(window.__rows
  if(box)box.querySelectorAll('button').forEach(b=>{if(/preview/i.test(b.textContent))b.addEventListener('click',e=>{if(!window.__rows){e.stopImmediatePropagation();e.preventDefault();SEO.note('Run "Rescan products" first.')}},true);else guard(b,true)});
  guard(document.getElementById('dlfix'),false);guard(document.getElementById('alfix'),false);
  const tp=document.getElementById('tp'),kp=document.querySelector('#secp .kpis');if(tp&&kp)kp.after(tp.closest('.card'))})();
+/* v4: each tab opens with results only; every tool and statistic sits in one closed section */
+(function(){const css=document.createElement('style');css.textContent='details.tools{margin-top:12px;background:var(--panel);box-shadow:var(--shadow);border-radius:14px;padding:12px 16px}details.tools>summary{cursor:pointer;font-weight:600}details.tools>summary small{font-weight:400;color:var(--mut);margin-left:8px}details.tools>.tin{margin-top:12px}details.tools .card{box-shadow:0 0 0 1px var(--line,rgba(0,0,0,.08))}.fixes.solo{display:block}';document.head.appendChild(css);
+ [['secp','tp','xp','Fix tools and statistics','Dead links, alt text, keyword density, bulk fixes and charts'],['secc','tc','xc','Statistics','Score bands and most common failures'],['secb','tb',null,'Statistics','Score bands and most common failures']].forEach(function(a){
+  const sec=document.getElementById(a[0]);if(!sec)return;const tbl=document.getElementById(a[1]);const tcard=tbl&&tbl.closest('.card');const x=a[2]&&document.getElementById(a[2]);const xcard=x&&x.closest('.card');
+  const top=sec.querySelector(':scope>.top'),kp=sec.querySelector(':scope>.kpis');let scan=null;
+  const fx=sec.querySelector(':scope>.fixes');if(fx&&fx.firstElementChild){scan=document.createElement('div');scan.className='fixes solo';scan.appendChild(fx.firstElementChild)}
+  const keep=new Set([top,kp,tcard,xcard,scan].filter(Boolean));
+  const d=document.createElement('details');d.className='tools';d.innerHTML='<summary>'+a[3]+'<small>'+a[4]+'</small></summary><div class="tin"></div>';const tin=d.firstElementChild.nextElementSibling;
+  [...sec.children].forEach(function(k){if(!keep.has(k))tin.appendChild(k)});
+  [top,scan,kp,xcard,tcard].filter(Boolean).forEach(function(k){sec.appendChild(k)});if(tin.children.length)sec.appendChild(d);
+  if(xcard){const h=xcard.querySelector('h2');if(h)h.textContent='Languages and tags'}})
+ const at=document.getElementById('attn'),ta=document.getElementById('tabsanchor'),tb=document.getElementById('tabsbar');if(at&&ta&&tb){at.before(ta);at.before(tb)}})();
 </script>
 </body></html>
