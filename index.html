@@ -196,8 +196,8 @@ async function fixOne(it){const P=SEO.P;if(!P||!it.id)throw new Error('Run "Resc
  [...names0].filter(n=>!FIXABLE.includes(n)).forEach(n=>held.push(n+' needs a manual edit'));
  return{done,held}}
 async function runFix(it,btn){btn.disabled=true;btn.textContent='Fixing…';
- try{const r=await fixOne(it);let n=it;if(r.done.length){n=await SEO.one.p(it);sync();const i=A.p.findIndex(x=>x.handle===it.handle);if(i>=0)A.p[i]=n;if(A.full.p)save();else A.keep.p=true}
-  note((it.title||it.handle)+': '+(r.done.length?'fixed ('+r.done.join(', ')+'), now '+n.score+'.':'nothing could be fixed automatically.')+(r.held.length?' Still open: '+r.held.join('; ')+'.':''));draw()}
+ try{const r=await fixOne(it);let n=it;{n=await SEO.one.p(it);sync();const i=A.p.findIndex(x=>x.handle===it.handle);if(i>=0)A.p[i]=n;if(A.full.p)save();else A.keep.p=true}
+  note((it.title||it.handle)+': '+(r.done.length?'fixed ('+r.done.join(', ')+'), now '+n.score+'.':(n.score>=100?'already fixed (the video is shared with another product), now 100.':'nothing could be fixed automatically.'))+(r.held.length?' Still open: '+r.held.join('; ')+'.':''));draw()}
  catch(e){console.error('SEO Score fix',e);note('Fix failed: '+(e&&e.message?e.message:e));btn.disabled=false;btn.textContent='Fix'}}
 const WT={3:'Critical',2:'Major',1:'Minor'};
 function detailOf(it){const d=document.createElement('div');d.className='det';
