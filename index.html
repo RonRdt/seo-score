@@ -652,11 +652,11 @@ document.getElementById('barp').appendChild(bar);
 const st=document.getElementById('alst'),bp=document.getElementById('alprev'),bf=document.getElementById('alfix');
 async function run(apply){bp.disabled=bf.disabled=true;try{
   const prods=[];let c=null,more=true;
-  while(more){const d=await retry('query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{id handle title media(first:20){nodes{... on MediaImage{id alt image{url}}}}}}}',{c});
+  while(more){const d=await retry('query($c:String){products(first:40,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{id handle title media(first:20){nodes{__typename ... on MediaImage{id alt image{url}} ... on Video{id alt}}}}}}',{c});
    prods.push(...d.products.nodes);more=d.products.pageInfo.hasNextPage;c=d.products.pageInfo.endCursor;st.textContent='Reading products… '+prods.length}
-  const work=[];for(const p of prods){const ch=planAlts(p);if(ch.length)work.push({handle:p.handle,ch})}
+  const work=[],vseen=new Set();for(const p of prods){const ch=planAlts(p);const tt=String(p.title||'').replace(/\s+/g,' ').trim().slice(0,100).replace(/[\s,;:\-–]+$/,'');let vi=0;p.media.nodes.forEach(m=>{if(m.__typename==='Video'&&m.id&&!(m.alt||'').trim()&&!vseen.has(m.id)){vseen.add(m.id);ch.push({id:m.id,alt:tt+' - product video'+(vi?' '+(vi+1):'')});vi++}});if(ch.length)work.push({handle:p.handle,ch})}
   window.__alts={products:work.map(w=>w.handle),total:work.reduce((a,w)=>a+w.ch.length,0),sample:work.slice(0,5)};
-  if(!apply){st.textContent='Preview: '+work.length+' products, '+window.__alts.total+' image alt texts to change (sample in console: __alts).';return}
+  if(!apply){st.textContent='Preview: '+work.length+' products, '+window.__alts.total+' image and video alt texts to change (sample in console: __alts).';return}
   let done=0,fail=0;const errs=[];const q=work.slice();
   async function w(){while(q.length){const o=q.shift();try{const d=await retry('mutation($f:[FileUpdateInput!]!){fileUpdate(files:$f){files{id}userErrors{field message}}}',{f:o.ch});
     const ue=d.fileUpdate.userErrors;if(ue&&ue.length){fail++;errs.push(o.handle+': '+ue.map(e=>e.message).join('; '))}else done++}catch(e){fail++;errs.push(o.handle+': '+e.message)}
@@ -693,7 +693,7 @@ const c0=document.createElement('div');c0.className='fx';c0.innerHTML='<h3>Scan<
 if(rs)c0.querySelector('.row').appendChild(rs);[scanst,scanned].forEach(e=>{if(e){e.style.display='block';c0.appendChild(e)}});
 wrap.appendChild(c0);
 wrap.appendChild(card('Dead links','Repairs product links that point to old handles, using your store redirects.',[g('dlprev'),g('dlfix')],g('dlst')));
-wrap.appendChild(card('Image alt text','Fills empty alt texts, cuts those over 125 characters and makes duplicates unique.',[g('alprev'),g('alfix')],g('alst')));
+wrap.appendChild(card('Image and video alt text','Fills empty alt texts on images and product videos, cuts image alts over 125 characters and makes duplicates unique.',[g('alprev'),g('alfix')],g('alst')));
 const kp=secp.querySelector('.kpis');kp.parentNode.insertBefore(wrap,kp);
 /* density table */
 const dc=document.createElement('div');dc.className='card dens';dc.style.marginTop='12px';
