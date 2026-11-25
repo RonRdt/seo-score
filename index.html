@@ -143,17 +143,22 @@ function chipsOf(a,max){const f=document.createDocumentFragment();a.slice(0,max)
 const urlOf=it=>STOREURL+(it.t==='p'?'/products/':it.t==='c'?'/collections/':'/blogs/'+(it.blog||'tips-knowledge')+'/')+it.handle;
 const admOf=it=>it.id?'shopify://admin/'+({p:'products/',c:'collections/',b:'articles/'}[it.t])+String(it.id).split('/').pop():'';
 let noteT;function note(msg){let n=$('toast');if(!n){n=document.createElement('div');n.id='toast';n.setAttribute('role','status');document.body.appendChild(n)}n.textContent=msg;n.classList.add('on');clearTimeout(noteT);noteT=setTimeout(()=>n.classList.remove('on'),Math.min(12000,4500+msg.length*35))}
-SEO.note=note;
+SEO.note=note;SEO.isDone=it=>isDone(it);
 async function rescanOne(it,btn){const fn=SEO.one[it.t];if(!fn){note('Rescan is not ready yet. Reload the page.');return}
  btn.disabled=true;const t0=btn.textContent;btn.textContent='Scanning…';
  try{const n=await fn(it);sync();const arr=A[it.t];const i=arr.findIndex(x=>x.handle===it.handle);if(i>=0)arr[i]=n;else arr.push(n);
   if(A.full[it.t])save();else A.keep[it.t]=true;
   note((n.title||n.handle)+': '+it.score+' → '+n.score+(n.score>=100?' (all checks pass)':''));draw()}
  catch(e){console.error('SEO Score rescan one',e);note('Rescan failed: '+(e&&e.message?e.message:e));btn.textContent=t0;btn.disabled=false}}
+let DONE={};try{DONE=JSON.parse(localStorage.getItem('seo_done')||'{}')||{}}catch(e){DONE={}}
+const dkey=it=>it.t+':'+it.handle,dsig=it=>it.fails.map(f=>f[0]).sort().join('|');
+const isDone=it=>it.score<100&&DONE[dkey(it)]===dsig(it);
+function setDone(it,on){if(on)DONE[dkey(it)]=dsig(it);else delete DONE[dkey(it)];try{localStorage.setItem('seo_done',JSON.stringify(DONE))}catch(e){}draw()}
 function acts(it){const f=document.createElement('span');f.className='acts';const a1=admOf(it);
  if(a1){const a=document.createElement('a');a.href=a1;a.target='_top';a.textContent='Edit';a.className='lk';a.title='Open in the Shopify admin';f.appendChild(a)}
  const v=document.createElement('a');v.href=urlOf(it);v.target='_blank';v.rel='noopener';v.textContent='View';v.className='lk';v.title='Open on the store';f.appendChild(v);
  const b=document.createElement('button');b.type='button';b.className='lk';b.textContent='Rescan';b.title='Score this one again from the store';b.onclick=e=>{e.stopPropagation();rescanOne(it,b)};f.appendChild(b);
+ if(it.score<100){const dn=document.createElement('button');dn.type='button';dn.className='lk';const was=isDone(it);dn.textContent=was?'Undo done':'Mark done';dn.title=was?'Put this back in the Needs attention list':'Accept this score as it is and take it off the Needs attention list. It comes back if its failing checks change.';dn.onclick=e=>{e.stopPropagation();setDone(it,!was);note((it.title||it.handle)+(was?': back in the Needs attention list.':': marked done.'))};f.appendChild(dn)}
  if(it.score<100){const x=document.createElement('button');x.type='button';x.className='lk fx1';x.textContent='Fix';x.title=canFix(it)?'Apply the automatic fix for this item, then rescan it':'No automatic fix for these checks';
   x.onclick=e=>{e.stopPropagation();if(!canFix(it)){note('No automatic fix for: '+it.fails.map(f=>f[0]).join(', ')+'. Use Edit, or ask Claude to rewrite it.');return}
    if(x.dataset.armed!=='1'){x.dataset.armed='1';x.textContent='Confirm fix';x.classList.add('arm');setTimeout(()=>{if(x.dataset.armed==='1'){x.dataset.armed='';x.classList.remove('arm');x.textContent='Fix'}},6000);return}
@@ -237,9 +242,9 @@ const plural=(n,w)=>f0(n)+' '+w+(n===1?'':'s');
 function draw(){sync();const P=aggP();
  $('k1').textContent=f1(P.avg);$('k2').textContent=f0(P.p90);$('k3').textContent=f0(P.p100);
  const ca=avgOf(A.c),ba=avgOf(A.b);$('c1').textContent=f0(A.c.length);$('c2').textContent=f1(ca);$('c3').textContent=f0(A.c.filter(x=>x.score>=90).length);
- const lowP=P.n-P.p100,lowC=A.c.filter(x=>x.score<100).length,lowB=A.b.filter(x=>x.score<100).length;
- const cnt={};[...A.p,...A.c,...A.b].forEach(r=>{if(r.score<100)r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1)});const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k+' ('+v+')');
- $('take').textContent=(lowP+lowC+lowB===0?'Everything scored is at 100.':plural(lowP,'product')+', '+plural(lowC,'collection')+' and '+plural(lowB,'article')+(lowP+lowC+lowB===1?' is':' are')+' below 100.'+(top.length?' Most common: '+top.join(', ')+'.':''))
+ const nd=[...A.p,...A.c,...A.b].filter(isDone).length;const lowP=P.n-P.p100-A.p.filter(isDone).length,lowC=A.c.filter(x=>x.score<100&&!isDone(x)).length,lowB=A.b.filter(x=>x.score<100&&!isDone(x)).length;
+ const cnt={};[...A.p,...A.c,...A.b].forEach(r=>{if(r.score<100&&!isDone(r))r.fails.forEach(f=>cnt[f[0]]=(cnt[f[0]]||0)+1)});const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,v])=>k+' ('+v+')');
+ $('take').textContent=(lowP+lowC+lowB===0?(nd?'Nothing needs attention. '+plural(nd,'item')+' marked done.':'Everything scored is at 100.'):plural(lowP,'product')+', '+plural(lowC,'collection')+' and '+plural(lowB,'article')+(lowP+lowC+lowB===1?' is':' are')+' below 100.'+(top.length?' Most common: '+top.join(', ')+'.':''))
   +' Averages: products '+f1(P.avg)+', collections '+f1(ca)+', blogs '+f1(ba)+'.';
  $('ctp').textContent=f0(P.n||2700);$('ctc').textContent=f0(A.c.length);$('ctb').textContent=f0(A.b.length);
  bars('bands',P.bands,'band','products',null,r=>['Below 50','50-59','60-69'].includes(r.band)?'hi':r.band==='90-99'||r.band==='100'?'ok':'');
@@ -264,7 +269,7 @@ function drawBlogs(){const B=A.b,bs=B.map(r=>r.score);
 function stamps(){[['p','scanned','Products'],['c','scannedc','Collections'],['b','scannedb','Blogs']].forEach(([t,id,l])=>{const e=$(id);if(e&&A.stamp[t])e.textContent=l+' rescanned '+A.stamp[t]+'.'})}
 /* Needs attention: everything below 100, all three types together */
 let attnAll=false;
-function attention(){const el=$('attnlist');el.textContent='';const low=A[TAB].filter(r=>r.score<100).sort((a,b)=>a.score-b.score||a.t.localeCompare(b.t)||String(a.handle).localeCompare(String(b.handle)));
+function attention(){const el=$('attnlist');el.textContent='';const low=A[TAB].filter(r=>r.score<100&&!isDone(r)).sort((a,b)=>a.score-b.score||a.t.localeCompare(b.t)||String(a.handle).localeCompare(String(b.handle)));
  $('attnn').textContent=low.length?'('+f0(low.length)+')':'';
  {const pn=$('attn').querySelector('p.note');if(pn)pn.textContent='Every '+({p:'product',c:'collection',b:'article'})[TAB]+' below 100, weakest first. Click a line to see why.'}
  if(!low.length){const e=document.createElement('div');e.className='empty';e.textContent='Nothing needs attention. Every '+({p:'product',c:'collection',b:'article'})[TAB]+' scored is at 100.';el.appendChild(e)}
@@ -276,6 +281,9 @@ function attention(){const el=$('attnlist');el.textContent='';const low=A[TAB].f
   m.append(tg,ti,p,ch,acts(it));r.appendChild(m);
   const d=document.createElement('div');d.hidden=!open[ok];if(open[ok])d.appendChild(detailOf(it));r.appendChild(d);
   m.onclick=e=>{if(e.target.closest('a,button'))return;open[ok]=!open[ok];if(!d.firstChild)d.appendChild(detailOf(it));d.hidden=!open[ok]};el.appendChild(r)});
+ {const acc=A[TAB].filter(isDone);if(acc.length){const d=document.createElement('details');d.className='xl';d.open=!!open['acc'+TAB];d.ontoggle=()=>{open['acc'+TAB]=d.open};const sm=document.createElement('summary');sm.textContent=f0(acc.length)+' marked done (accepted as it is)';d.appendChild(sm);
+  acc.forEach(it=>{const r=document.createElement('div');r.className='arow';const m=document.createElement('div');m.className='amain';const ti=document.createElement('span');ti.className='ati';ti.textContent=it.title||it.handle;if(it.barcode){const s2=document.createElement('small');s2.textContent=it.barcode;ti.appendChild(s2)}
+   const p=document.createElement('span');p.className='pill pg';p.textContent=it.score;const ch=document.createElement('span');ch.className='ach hn';ch.appendChild(chipsOf(it.fails.map(x=>x[0]),2));m.append(ti,p,ch,acts(it));r.appendChild(m);d.appendChild(r)});el.appendChild(d)}}
  const more=$('attnmore');more.hidden=low.length<=8;more.textContent=attnAll?'Show fewer':'Show all '+f0(low.length);
  const fr=$('fresh');const msgs=[];const F=SEO.fresh||{};
  if(F.p)msgs.push('The store now has '+f0(F.p[0])+' active products; the last product scan saw '+f0(F.p[1])+'. Run "Rescan products".');
@@ -868,5 +876,25 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const R=(window.__rows
   [top,scan,kp,xcard,tcard].filter(Boolean).forEach(function(k){sec.appendChild(k)});if(tin.children.length)sec.appendChild(d);
   if(xcard){const h=xcard.querySelector('h2');if(h)h.textContent='Languages and tags'}})
  const at=document.getElementById('attn'),ta=document.getElementById('tabsanchor'),tb=document.getElementById('tabsbar');if(at&&ta&&tb){at.before(ta);at.before(tb)}})();
+/* v4: one button that scans products, collections and blogs, then writes a short report */
+(function(){const hd=document.querySelector('header');if(!hd)return;const g=id=>document.getElementById(id);
+ const bar=document.createElement('div');bar.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px';
+ bar.innerHTML='<button class="fb pri" id="scanall" type="button">Scan all and report</button><span class="note" id="scanallst">Scans products, collections and blogs, then shows one report.</span>';hd.appendChild(bar);
+ const rep=document.createElement('div');rep.className='card';rep.id='rep';rep.hidden=true;rep.style.marginBottom='12px';hd.after(rep);
+ const wait=id=>new Promise(res=>{const el=g(id);let n=0;const t=setInterval(()=>{const s=el?el.textContent:'Done';n++;if(/^Done|failed/i.test(s)||n>3600){clearInterval(t);res(n>3600?'failed: timed out':s)}},500)});
+ function report(){const A=SEO.A,done=SEO.isDone,L=[];
+  const sec=(t,name)=>{const R=A[t],low=R.filter(r=>r.score<100&&!done(r)).sort((x,y)=>x.score-y.score),acc=R.filter(done),miss=R.filter(r=>r.loc&&r.loc.length);
+   let s=name+': '+R.length+' scanned, '+R.filter(r=>r.score===100).length+' at 100, '+low.length+' need attention'+(acc.length?', '+acc.length+' marked done':'')+'.';
+   if(t!=='b')s+=' FAQ languages: '+(miss.length?miss.length+' missing at least one':'all complete')+'.';L.push(s);
+   low.slice(0,10).forEach(r=>L.push('  - '+(r.barcode?r.barcode+' ':'')+(r.title||r.handle)+' ('+r.score+'): '+r.fails.map(f=>f[0]).join('; ')));if(low.length>10)L.push('  - and '+(low.length-10)+' more')};
+  sec('p','Products');const hm=A.p.filter(r=>r.hair==='missing').length;L.push('  Hair Care tag: '+(hm?hm+' hair products lack it':'complete')+'.');sec('c','Collections');sec('b','Blogs');
+  ['p','c','b'].forEach(t=>{const d=A.diff&&A.diff[t];if(d){const n=d.up.length+d.down.length+d.added.length+d.removed.length;L.push(({p:'Products',c:'Collections',b:'Blogs'})[t]+' since the previous scan: '+(n?[d.down.length?d.down.length+' dropped':'',d.up.length?d.up.length+' improved':'',d.added.length?d.added.length+' new':'',d.removed.length?d.removed.length+' no longer listed':''].filter(Boolean).join(', '):'no change')+'.')}});
+  return L.join('\n')}
+ g('scanall').onclick=async function(){const b=this,st=g('scanallst');b.disabled=true;const steps=[['rescan','scanst','products'],['rescanc','scanstc','collections'],['rescanb','scanstb','blogs']],bad=[];
+  for(const s of steps){st.textContent='Scanning '+s[2]+'…';const btn=g(s[0]);if(!btn||btn.disabled){bad.push(s[2]);continue}const el=g(s[1]);if(el)el.textContent='';btn.click();const r=await wait(s[1]);if(/failed/i.test(r))bad.push(s[2]+' ('+r+')')}
+  const text='SEO report, '+new Date().toLocaleString()+'\n'+(bad.length?'Not scanned: '+bad.join(', ')+'\n':'')+report();
+  rep.hidden=false;rep.innerHTML='<div class="top"><h2>Report</h2><div class="bar"><button class="fb" id="repcopy" type="button">Copy report</button><button class="fb" id="repclose" type="button">Close</button></div></div><pre style="white-space:pre-wrap;font:inherit;font-size:13px;margin:8px 0 0"></pre>';
+  rep.querySelector('pre').textContent=text;g('repclose').onclick=()=>{rep.hidden=true};g('repcopy').onclick=async()=>{try{await navigator.clipboard.writeText(text);SEO.note('Report copied.')}catch(e){SEO.note('Copy did not work. Select the text and copy it.')}};
+  st.textContent=bad.length?'Finished with problems.':'Done.';b.disabled=false;window.scrollTo(0,0)}})();
 </script>
 </body></html>
