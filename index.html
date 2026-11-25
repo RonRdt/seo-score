@@ -173,7 +173,7 @@ function acts(it){const f=document.createElement('span');f.className='acts';cons
    x.dataset.armed='';x.classList.remove('arm');runFix(it,x)};f.appendChild(x)}
  return f}
 /* Fix: only the changes that need no writing. Each text change is re-scored first and held back if it would break another check. */
-const FIXABLE=['Every image has alt text','Alt texts unique and 125 chars max','Internal links point to active products','Keyword density 1-1.5%','Sentences under 20 words'];
+const FIXABLE=['Every video has alt text','Every image has alt text','Alt texts unique and 125 chars max','Internal links point to active products','Keyword density 1-1.5%','Sentences under 20 words'];
 function canFix(it){return it.t==='p'&&!!it.id&&it.fails.some(f=>FIXABLE.includes(f[0])&&(f[0]!=='Keyword density 1-1.5%'||it.dens>1.5))}
 async function fixOne(it){const P=SEO.P;if(!P||!it.id)throw new Error('Run "Rescan products" first');
  const live=window.__live||(A.full.p?new Set(A.p.map(x=>x.handle)):null),lv=live||{has:()=>true};if(!window.__live)window.__live=lv;
@@ -190,6 +190,9 @@ async function fixOne(it){const P=SEO.P;if(!P||!it.id)throw new Error('Run "Resc
   else{const w=await gqlA('mutation($i:ProductUpdateInput!){productUpdate(product:$i){userErrors{message}}}',{i:{id:p.id,descriptionHtml:html}});const ue=w.productUpdate.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);done.push(...text)}}
  if((has('Every image has alt text')||has('Alt texts unique and 125 chars max'))&&SEO.planAlts){const d=await gqlA('query($id:ID!){product(id:$id){title media(first:20){nodes{... on MediaImage{id alt image{url}}}}}}',{id:p.id});const ch=SEO.planAlts(d.product);
   if(ch.length){const w=await gqlA('mutation($f:[FileUpdateInput!]!){fileUpdate(files:$f){userErrors{message}}}',{f:ch});const ue=w.fileUpdate.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);done.push(ch.length+' image alt text'+(ch.length===1?'':'s')+' set')}}
+ if(has('Every video has alt text')){const d=await gqlA('query($id:ID!){product(id:$id){title media(first:20){nodes{mediaContentType ... on Video{id alt}}}}}',{id:p.id});
+  const tt=String(d.product.title||'').replace(/\s+/g,' ').trim().slice(0,100).replace(/[\s,;:\-–]+$/,''),ch=d.product.media.nodes.filter(m=>m.mediaContentType==='VIDEO'&&m.id&&!(m.alt||'').trim()).map((m,i)=>({id:m.id,alt:tt+' - product video'+(i?' '+(i+1):'')}));
+  if(ch.length){const w=await gqlA('mutation($f:[FileUpdateInput!]!){fileUpdate(files:$f){userErrors{message}}}',{f:ch});const ue=w.fileUpdate.userErrors;if(ue&&ue.length)throw new Error(ue[0].message);done.push(ch.length+' video alt text'+(ch.length===1?'':'s')+' set')}}
  [...names0].filter(n=>!FIXABLE.includes(n)).forEach(n=>held.push(n+' needs a manual edit'));
  return{done,held}}
 async function runFix(it,btn){btn.disabled=true;btn.textContent='Fixing…';
@@ -201,7 +204,7 @@ function detailOf(it){const d=document.createElement('div');d.className='det';
  if(!it.fails.length){const p=document.createElement('p');p.textContent='All checks pass.';d.appendChild(p)}
  it.fails.forEach(f=>{const r=document.createElement('div');r.className='fl';const w=document.createElement('span');w.className='wt w'+f[1];w.textContent=WT[f[1]]||'';const n=document.createElement('b');n.textContent=f[0];r.append(w,n);
   if(f[2]){const s=document.createElement('span');s.className='why';s.textContent=f[2];r.appendChild(s)}d.appendChild(r)});
- const meta=[];if(it.kw)meta.push('Main keyword: '+it.kw);if(it.barcode)meta.push('Barcode: '+it.barcode);meta.push('Handle: '+it.handle);if(it.loc&&it.loc.length)meta.push('FAQs missing in: '+it.loc.join(', '));
+ const meta=[];if(it.kw)meta.push('Main keyword: '+it.kw);if(it.barcode)meta.push('Barcode: '+it.barcode);if(it.vid)meta.push('Product video: yes'+(it.vid>1?' ('+it.vid+')':''));meta.push('Handle: '+it.handle);if(it.loc&&it.loc.length)meta.push('FAQs missing in: '+it.loc.join(', '));
  if(it.nf&&it.nf>it.fails.length)meta.push((it.nf-it.fails.length)+' more failing checks. Rescan to list them.');
  const m=document.createElement('p');m.className='note';m.textContent=meta.join(' · ');d.appendChild(m);return d}
 const failsW=(it,w)=>it.fails.filter(f=>f[1]===w).map(f=>f[0]);
@@ -218,7 +221,7 @@ function table(id,key){const st=S[key],cols=COLS[key],tb=$(id).querySelector('tb
  data.slice(0,st.lim).forEach(r=>{const tr=document.createElement('tr');tr.className='row';const ok=key+':'+r.handle;
   cols.forEach(c=>{const td=document.createElement('td');
   if(c==='score'){const v=r.score;const p=document.createElement('span');p.className='pill '+(v>=90?'pg':v>=70?'pm':'pb');p.textContent=v;td.appendChild(p)}
-  else if(c==='handle'){td.className='h';td.textContent=r.title||r.handle;const sm2=document.createElement('small');sm2.textContent=(r.barcode?r.barcode+' · ':'')+(r.title?r.handle:'');if(sm2.textContent)td.appendChild(sm2)}
+  else if(c==='handle'){td.className='h';td.textContent=r.title||r.handle;const sm2=document.createElement('small');sm2.textContent=(r.barcode?r.barcode+' · ':'')+(r.title?r.handle:'')+(r.vid?' · ▶ video':'');if(sm2.textContent)td.appendChild(sm2)}
   else if(c==='status'){const p=document.createElement('span');p.className='st '+(r.status==='Visible'?'v':'hd');p.textContent=r.status||'';td.appendChild(p)}
   else if(c==='top_fixes'){td.className='hn';td.appendChild(chipsOf(r.fails.map(x=>x[0]),key==='p'?2:3))}
   else if(c==='critical fails'||c==='major fails'||c==='minor fails'){td.className='hn';td.appendChild(chipsOf(failsW(r,c[0]==='c'?3:c[1]==='a'?2:1),3))}
@@ -370,7 +373,7 @@ const CLAIM=/\b(treat|treats|treatment|cure|cures|heal|heals|healing|prevent|pre
 const NEG=/\b(we don't know|we do not know|cannot find|can't find|not available|unknown|no information)\b/i;
 const LF=SEO.LOC.map(l=>'l_'+l.slice(0,2)+':metafield(namespace:"faqs",key:"settings_'+l+'"){id}').join(' ');
 const FIELDS=`id handle title vendor tags descriptionHtml seo{title description} variants(first:1){nodes{barcode sku}}
- media(first:20){nodes{alt ... on MediaImage{image{url}}}} f1:metafield(namespace:"faqs",key:"settings"){value} f2:metafield(namespace:"faqs",key:"settings_en"){value} `+LF;
+ media(first:20){nodes{alt mediaContentType ... on MediaImage{image{url}}}} f1:metafield(namespace:"faqs",key:"settings"){value} f2:metafield(namespace:"faqs",key:"settings_en"){value} `+LF;
 const Q=`query($c:String){products(first:25,after:$c,query:"status:active"){pageInfo{hasNextPage endCursor}nodes{${FIELDS}}}}`;
 const words=t=>(t.match(/[\p{L}\p{N}'’-]+/gu)||[]);
 const strip=h=>h.replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
@@ -393,6 +396,7 @@ function score(p,live){
  let faq1=null,faq2=null;try{faq1=JSON.parse(p.f1.value)}catch(e){}try{faq2=JSON.parse(p.f2.value)}catch(e){}
  const qs=(faq2&&faq2.questions)||(faq1&&faq1.questions)||[];
  const imgs=p.media.nodes.filter(m=>m.image),alts=imgs.map(m=>(m.alt||'').trim());
+ const valts=p.media.nodes.filter(m=>m.mediaContentType==='VIDEO').map(m=>(m.alt||'').trim());
  const md=(p.seo&&p.seo.description)||'',mt=(p.seo&&p.seo.title)||p.title;const hw=p.handle.split('-');
  const needsInci=/ingredient/i.test(txt)||p.tags.some(t=>/^(type:(vitamins|supplements|cream|serum|shampoo|lotion))/.test(t));
  const hasInci=heads.some(h=>/ingredient/.test(h))&&/<li/i.test(html);
@@ -406,7 +410,7 @@ function score(p,live){
  ['A neutral external link',2,external.length>=1],['Meta title 60 chars max, keyword early',2,mt.length<=60&&kw.split(' ').some(k=>{const i=mt.toLowerCase().indexOf(k);return i>=0&&i<=30})],
  ['Keyword in meta description',2,md.toLowerCase().includes(kw)],['No stop words in handle',2,!hw.some(w=>STOP.has(w))],['Keyword in an FAQ answer',2,qs.some(q=>(q.answer||'').toLowerCase().includes(kw))],
  ['FAQ keys settings and settings_en match',2,!!faq1&&!!faq2&&JSON.stringify(faq1.questions)===JSON.stringify(faq2.questions)],['No empty FAQ text',2,qs.every(q=>q.question&&q.answer)],
- ['Every image has alt text',2,alts.every(a=>a)],['5-10 meaningful tags',2,p.tags.filter(t=>!/^collection:/.test(t)).length>=5&&p.tags.filter(t=>!/^collection:/.test(t)).length<=10],['No claim-word tags',2,!p.tags.some(t=>CLAIM.test(t))],
+ ['Every image has alt text',2,alts.every(a=>a)],['Every video has alt text',2,valts.every(a=>a)],['5-10 meaningful tags',2,p.tags.filter(t=>!/^collection:/.test(t)).length>=5&&p.tags.filter(t=>!/^collection:/.test(t)).length<=10],['No claim-word tags',2,!p.tags.some(t=>CLAIM.test(t))],
  ['No self-link',1,!internal.includes(p.handle)],['FAQ answerHTML present',1,qs.every(q=>q.answerHTML)],['Meta title differs from meta description',1,mt!==md],
  ['Alt texts unique and 125 chars max',1,new Set(alts).size===alts.length&&alts.every(a=>a.length<=125)],['Tags use prefix convention',1,p.tags.every(t=>/:|^\d+$/.test(t))]];
  const cm=CLAIM.exec(txt),ng=NEG.exec(txt),ctx=m=>'"'+txt.slice(Math.max(0,m.index-40),m.index+m[0].length+40).trim()+'"';
@@ -417,7 +421,7 @@ function score(p,live){
   'No negative or uncertain sentences':ng?'The phrase "'+ng[0]+'" in '+ctx(ng):'','Internal links point to active products':dead.length?'Dead links: '+dead.join(', '):'',
   'Sentences under 20 words':longS.length+' long, first: "'+(longS[0]||'').slice(0,140)+'"','2+ internal product links':internal.length+' links','Meta title 60 chars max, keyword early':mt.length+' characters: "'+mt+'"',
   'Keyword in meta description':'The meta description lacks "'+kw+'"','No stop words in handle':'Stop words: '+hw.filter(w=>STOP.has(w)).join(', '),'Keyword in an FAQ answer':'No FAQ answer contains "'+kw+'"',
-  'Every image has alt text':alts.filter(a=>!a).length+' images without alt text','5-10 meaningful tags':p.tags.filter(t=>!/^collection:/.test(t)).length+' tags (collection: tags are not counted)','No claim-word tags':'Tags: '+p.tags.filter(t=>CLAIM.test(t)).join(', ')};
+  'Every image has alt text':alts.filter(a=>!a).length+' images without alt text','Every video has alt text':valts.filter(a=>!a).length+' product video'+(valts.filter(a=>!a).length===1?'':'s')+' without alt text','5-10 meaningful tags':p.tags.filter(t=>!/^collection:/.test(t)).length+' tags (collection: tags are not counted)','No claim-word tags':'Tags: '+p.tags.filter(t=>CLAIM.test(t)).join(', ')};
  let tot=0,got=0;const fails=[];C.forEach(([n,w,ok])=>{tot+=w;if(ok)got+=w;else fails.push([n,w,info[n]||''])});
  fails.sort((a,b)=>b[1]-a[1]);return{score:Math.round(got/tot*100),fails,kw,occ,wc,dens,longs:longS.slice(0,6).map(s=>s.slice(0,240))}
 }
@@ -425,7 +429,7 @@ const HAIR=/\b(shampoo|conditioner|hair|hairspray|scalp|curls?|leave-in|dandruff
 const NOTHAIR=/textile|laundry|carpet|fabric|hair remov|depilat|face and scalp|shaving|beard/i;
 function compact(r){const p=r.p,v=p.variants&&p.variants.nodes[0],has=p.tags.includes('collection:hair-care');
  const looks=(HAIR.test(p.title)||p.tags.some(t=>/^hair-type:|^type:(shampoo|conditioner|hair)/i.test(t)))&&!NOTHAIR.test(p.title);
- return{t:'p',id:p.id,handle:p.handle,title:p.title,vendor:p.vendor||'',barcode:(v&&(v.barcode||v.sku))||'',score:r.score,fails:r.fails,kw:r.kw,occ:r.occ,wc:r.wc,dens:+r.dens.toFixed(2),tags:p.tags,
+ return{t:'p',id:p.id,handle:p.handle,title:p.title,vendor:p.vendor||'',barcode:(v&&(v.barcode||v.sku))||'',score:r.score,fails:r.fails,kw:r.kw,occ:r.occ,wc:r.wc,dens:+r.dens.toFixed(2),tags:p.tags,vid:p.media.nodes.filter(m=>m.mediaContentType==='VIDEO'||m.mediaContentType==='EXTERNAL_VIDEO').length||undefined,
   loc:'l_he' in p?SEO.LOC.filter(l=>!p['l_'+l.slice(0,2)]):undefined,hair:looks&&!has?'missing':has&&!looks?'extra':'',longs:r.fails.some(f=>f[0]==='Sentences under 20 words')?r.longs:undefined}}
 SEO.one.p=async it=>{const d=it.id?await gql('query($id:ID!){product(id:$id){'+FIELDS+'}}',{id:it.id}):await gql('query($h:String!){product:productByIdentifier(identifier:{handle:$h}){'+FIELDS+'}}',{h:it.handle});
  const p=d.product;if(!p)throw new Error('Product not found');const live=window.__live||(SEO.A.full.p?new Set(SEO.A.p.map(x=>x.handle)):{has:()=>true});const r={p,...score(p,live)};
@@ -896,7 +900,7 @@ b.onclick=async()=>{b.disabled=true;let ok=0,bad=0,log=[];const R=(window.__rows
    let s=name+': '+R.length+' scanned, '+R.filter(r=>r.score===100).length+' at 100, '+low.length+' need attention'+(acc.length?', '+acc.length+' marked done':'')+'.';
    if(t!=='b')s+=' FAQ languages: '+(miss.length?miss.length+' missing at least one':'all complete')+'.';L.push(s);
    low.slice(0,10).forEach(r=>L.push('  - '+(r.barcode?r.barcode+' ':'')+(r.title||r.handle)+' ('+r.score+'): '+r.fails.map(f=>f[0]).join('; ')));if(low.length>10)L.push('  - and '+(low.length-10)+' more')};
-  sec('p','Products');const hm=A.p.filter(r=>r.hair==='missing').length;L.push('  Hair Care tag: '+(hm?hm+' hair products lack it':'complete')+'.');sec('c','Collections');sec('b','Blogs');
+  sec('p','Products');const hm=A.p.filter(r=>r.hair==='missing').length;L.push('  Hair Care tag: '+(hm?hm+' hair products lack it':'complete')+'.');{const vp=A.p.filter(r=>r.vid),vm=A.p.filter(r=>r.fails.some(f=>f[0]==='Every video has alt text'));L.push('  Product videos: '+vp.length+' product'+(vp.length===1?' has':'s have')+' a video'+(vm.length?', '+vm.length+' missing video alt text':vp.length?', all with alt text':'')+'.')}sec('c','Collections');sec('b','Blogs');
   ['p','c','b'].forEach(t=>{const d=A.diff&&A.diff[t];if(d){const n=d.up.length+d.down.length+d.added.length+d.removed.length;L.push(({p:'Products',c:'Collections',b:'Blogs'})[t]+' since the previous scan: '+(n?[d.down.length?d.down.length+' dropped':'',d.up.length?d.up.length+' improved':'',d.added.length?d.added.length+' new':'',d.removed.length?d.removed.length+' no longer listed':''].filter(Boolean).join(', '):'no change')+'.')}});
   return L.join('\n')}
  g('scanall').onclick=async function(){const b=this,st=g('scanallst');b.disabled=true;const steps=[['rescan','scanst','products'],['rescanc','scanstc','collections'],['rescanb','scanstb','blogs']],bad=[];
